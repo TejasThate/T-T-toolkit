@@ -17,17 +17,29 @@ export default function Dashboard() {
   const [fetchingNews, setFetchingNews] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
   const fetchPortfolio = async () => {
-    const res = await fetch("http://localhost:8000/portfolio");
-    if (res.ok) {
-      setHoldings(await res.json());
+    try {
+      const res = await fetch(`${API_URL}/portfolio`);
+      if (res.ok) {
+        const data = await res.json();
+        setHoldings(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch portfolio:", err);
     }
   };
 
   const fetchNews = async () => {
-    const res = await fetch("http://localhost:8000/news");
-    if (res.ok) {
-      setNews(await res.json());
+    try {
+      const res = await fetch(`${API_URL}/news`);
+      if (res.ok) {
+        const data = await res.json();
+        setNews(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch news:", err);
     }
   };
 
@@ -36,35 +48,43 @@ export default function Dashboard() {
     fetchNews();
   }, []);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
 
-    const res = await fetch("http://localhost:8000/portfolio/upload", {
-      method: "POST",
-      body: formData,
-    });
-
-    if (res.ok) {
-      alert("Portfolio uploaded successfully!");
-      fetchPortfolio();
-    } else {
-      alert("Failed to upload portfolio.");
+    try {
+      const res = await fetch(`${API_URL}/portfolio/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        alert("Portfolio updated successfully!");
+        fetchPortfolio();
+      } else {
+        alert("Failed to upload portfolio");
+      }
+    } catch (err) {
+      console.error("Error uploading file:", err);
     }
     setUploading(false);
   };
 
-  const triggerNewsFetch = async () => {
+  const handleFetchNews = async () => {
     setFetchingNews(true);
-    const res = await fetch("http://localhost:8000/news/fetch", { method: "POST" });
-    if (res.ok) {
-      fetchNews();
+    try {
+      const res = await fetch(`${API_URL}/news/fetch`, { method: "POST" });
+      if (res.ok) {
+        await fetchNews();
+      }
+    } catch (err) {
+      console.error("Failed to fetch latest news:", err);
+    } finally {
+      setFetchingNews(false);
     }
-    setFetchingNews(false);
   };
 
   return (
@@ -102,7 +122,7 @@ export default function Dashboard() {
             <CardDescription>Fetch latest market news and rate impact.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={triggerNewsFetch} disabled={fetchingNews}>
+            <Button onClick={handleFetchNews} disabled={fetchingNews}>
               {fetchingNews ? "Fetching..." : "Fetch Latest News"}
             </Button>
           </CardContent>

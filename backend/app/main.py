@@ -1,7 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from .database import engine, Base
-from . import models
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from typing import List
+import csv
+import io
+from fastapi import UploadFile, File
+
+from .database import engine, Base, get_db
+from . import models, schemas, crud, auth, news_service
 
 app = FastAPI(title="T&T API", version="0.1.0")
 
@@ -23,17 +31,41 @@ async def startup():
 def read_root():
     return {"message": "Welcome to T&T API"}
 
-import csv
-import io
-from fastapi import UploadFile, File, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-from . import crud, schemas
-from .database import get_db
-from sqlalchemy import select
+@app.post("/auth/register", response_model=schemas.Token)
+async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(models.User).where(models.User.email == user.email))
+    db_user = result.scalars().first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    hashed_password = auth.get_password_hash(user.password)
+    new_user = models.User(email=user.email, hashed_password=hashed_password)
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    
+    access_token = auth.create_access_token(data={"sub": new_user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/login", response_model=schemas.Token)
+async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(models.User).where(models.User.email == form_data.username))
+    user = result.scalars().first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = auth.create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/portfolio/upload")
-async def upload_portfolio(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def upload_portfolio(
+    file: UploadFile = File(...), 
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
@@ -41,17 +73,12 @@ async def upload_portfolio(file: UploadFile = File(...), db: AsyncSession = Depe
     decoded_content = content.decode('utf-8')
     csv_reader = csv.DictReader(io.StringIO(decoded_content))
     
-    # Mock user_id = 1 for now until auth is implemented
-    user_id = 1
-    
+    user_id = current_user.id
     await crud.delete_user_holdings(db, user_id)
     
     holdings_created = []
     for row in csv_reader:
-        # Assuming generic column names, adapt if Groww export differs
         try:
-            # Map typical Groww CSV columns or standard formats
-            # Note: Groww might use 'Stock Name', 'ISIN', etc. We'll use a generic fallback.
             symbol = row.get('Symbol') or row.get('ISIN') or 'UNKNOWN'
             company = row.get('Company Name') or row.get('Stock Name') or symbol
             qty = float(row.get('Quantity') or row.get('Shares') or 0)
@@ -69,30 +96,74 @@ async def upload_portfolio(file: UploadFile = File(...), db: AsyncSession = Depe
             db_holding = await crud.create_holding(db, holding_data, user_id)
             holdings_created.append(db_holding)
         except Exception as e:
-            # Skip invalid rows
             print(f"Skipping row due to error: {e}")
             continue
             
     return {"message": f"Successfully uploaded {len(holdings_created)} holdings."}
 
 @app.get("/portfolio", response_model=List[schemas.Holding])
-async def get_portfolio(db: AsyncSession = Depends(get_db)):
-    user_id = 1
+async def get_portfolio(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    user_id = current_user.id
     holdings = await crud.get_holdings(db, user_id)
+    # Fetch live market data in the background and update holdings
+    holdings = await crud.update_live_prices(db, holdings)
     return holdings
 
-from . import news_service
-
 @app.post("/news/fetch")
-async def trigger_news_fetch(db: AsyncSession = Depends(get_db)):
+async def trigger_news_fetch(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     processed = await news_service.fetch_and_process_news(db)
     return {"message": f"Successfully fetched and rated {processed} new articles."}
 
 @app.get("/news", response_model=List[schemas.NewsArticle])
-async def get_news(db: AsyncSession = Depends(get_db)):
+async def get_news(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     result = await db.execute(
         select(models.NewsArticle)
         .order_by(models.NewsArticle.impact_score.desc())
         .limit(10)
     )
     return result.scalars().all()
+
+from pydantic import BaseModel
+class ChatRequest(BaseModel):
+    query: str
+
+@app.post("/ai/chat")
+async def ai_chat(
+    req: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    holdings = await crud.get_holdings(db, current_user.id)
+    portfolio_context = "\n".join([f"{h.symbol} ({h.company_name}): {h.quantity} shares @ {h.average_price}" for h in holdings])
+    
+    prompt = f"""
+    You are an expert financial AI assistant. The user is asking a question about their stock portfolio or the market.
+    Here is the user's current portfolio:
+    {portfolio_context if portfolio_context else "No stocks currently held."}
+    
+    User Query: {req.query}
+    
+    Provide a helpful, concise, and analytical answer. Keep your response formatting clean and markdown compatible.
+    """
+    
+    try:
+        if not news_service.client:
+            return {"reply": "Groq API key not configured. I cannot process this request."}
+            
+        response = await news_service.client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            temperature=0.7,
+        )
+        return {"reply": response.choices[0].message.content}
+    except Exception as e:
+        return {"reply": f"Sorry, I encountered an error: {e}"}

@@ -1,5 +1,7 @@
 import feedparser
 import random
+import asyncio
+import aiohttp
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from . import crud, schemas
@@ -15,16 +17,16 @@ RSS_FEEDS = [
 
 import os
 import json
-from groq import Groq
+from groq import AsyncGroq
 from dotenv import load_dotenv
 
 load_dotenv() # Load variables from .env
 
 # Configure Groq API if key is present
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-def analyze_impact(title: str, summary: str):
+async def analyze_impact(title: str, summary: str):
     """
     Uses Groq to analyze impact. Falls back to keyword heuristic if no key.
     Filters out general market news.
@@ -40,11 +42,9 @@ def analyze_impact(title: str, summary: str):
     Summary: {summary}
     
     IMPORTANT INSTRUCTION:
-    We ONLY want news that is specifically about individual companies, investments, fundings, acquisitions, or direct catalysts (e.g. "Reliance acquires startup", "TCS announces dividend", "Bajaj Finance hits 52 week high").
-    DO NOT include general market news, sector overviews, global news, or index movements (e.g. "Sensex falls", "Nifty gains", "Market wrap", "Mid-day mood").
-    
-    If the news is general market news or NOT about a specific company, return "affected_symbol": "NONE".
-    If the news IS about a specific company, determine its impact score and NSE symbol.
+    We want news that is about specific companies, investments, or catalysts.
+    Even if it mentions a sector broadly, try to extract the main company mentioned.
+    If the news is purely general market news with NO specific company, return "affected_symbol": "NONE".
     
     Provide your output strictly in the following JSON format:
     {{
@@ -56,9 +56,9 @@ def analyze_impact(title: str, summary: str):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="qwen/qwen3.8-27b",
+            model="llama-3.1-8b-instant",  # Updated to a valid Groq model
             temperature=0,
             response_format={"type": "json_object"}
         )
@@ -75,7 +75,7 @@ def mock_analyze_impact(title: str, summary: str):
     # Simple keyword heuristic for demonstration
     text = (title + " " + summary).lower()
     score = random.uniform(2.0, 5.0) # Baseline neutral
-    reason = "Mocked (No GEMINI_API_KEY found)."
+    reason = "Mocked (No API Key found)."
     
     positive_words = ['surge', 'jump', 'profit', 'upgraded', 'wins', 'growth', 'record', 'dividend']
     negative_words = ['plunge', 'loss', 'downgraded', 'crash', 'scam', 'fraud', 'declines', 'misses']
@@ -93,18 +93,49 @@ def mock_analyze_impact(title: str, summary: str):
         
     return round(score, 1), reason, "NIFTY50"
 
+async def fetch_feed(session, url):
+    try:
+        async with session.get(url, timeout=10) as response:
+            content = await response.text()
+            return feedparser.parse(content)
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+        return None
+
 async def fetch_and_process_news(db: AsyncSession):
     articles_processed = 0
     
-    for feed_url in RSS_FEEDS:
-        feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:4]: # Process top 4 from each feed to prevent timeouts
-            title = entry.title
-            link = entry.link
-            summary = getattr(entry, 'summary', '')
-            published_at = datetime.utcnow() # In reality, parse entry.published
-            
-            score, reason, symbol = analyze_impact(title, summary)
+    async with aiohttp.ClientSession() as session:
+        # Fetch all feeds concurrently
+        tasks = [fetch_feed(session, url) for url in RSS_FEEDS]
+        feeds = await asyncio.gather(*tasks)
+        
+        analysis_tasks = []
+        entries_to_process = []
+        
+        for feed in feeds:
+            if not feed:
+                continue
+            for entry in feed.entries[:4]: # Process top 4 from each feed to prevent timeouts
+                title = entry.title
+                link = entry.link
+                summary = getattr(entry, 'summary', '')
+                published_at = datetime.utcnow() # In reality, parse entry.published
+                
+                entries_to_process.append((title, link, summary, published_at))
+                # Create the analysis task concurrently
+                analysis_tasks.append(analyze_impact(title, summary))
+                
+        # Run all AI analysis calls concurrently
+        analysis_results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+        
+        for i, result in enumerate(analysis_results):
+            if isinstance(result, Exception):
+                print(f"Analysis failed for an article: {result}")
+                continue
+                
+            score, reason, symbol = result
+            title, link, summary, published_at = entries_to_process[i]
             
             # Skip general news based on our strict AI prompt
             if symbol == "NONE" or symbol == "UNKNOWN":
@@ -122,9 +153,8 @@ async def fetch_and_process_news(db: AsyncSession):
             )
             
             try:
-                # Need to add create_news_article to crud.py
-                from . import crud, models
-                db_article = models.NewsArticle(**article_data.dict())
+                from . import models
+                db_article = models.NewsArticle(**article_data.model_dump())
                 db.add(db_article)
                 await db.commit()
                 articles_processed += 1

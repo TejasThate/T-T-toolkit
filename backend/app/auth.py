@@ -9,8 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from .database import get_db
 from .models import User
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-jwt-keep-it-secret")
+
+def verify_google_token(token: str):
+    try:
+        idinfo = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
+        return idinfo
+    except ValueError:
+        return None
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 

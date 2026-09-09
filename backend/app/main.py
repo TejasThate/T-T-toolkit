@@ -65,6 +65,31 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.post("/auth/google", response_model=schemas.Token)
+async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+    idinfo = auth.verify_google_token(req.credential)
+    if not idinfo:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google Token")
+    
+    email = idinfo.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google token missing email")
+
+    result = await db.execute(select(models.User).where(models.User.email == email))
+    user = result.scalars().first()
+    
+    if not user:
+        # Auto-register user with random password since they use Google
+        import secrets
+        hashed_password = auth.get_password_hash(secrets.token_urlsafe(32))
+        user = models.User(email=email, hashed_password=hashed_password)
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+    access_token = auth.create_access_token(data={"sub": user.email})
+    return {"access_token": access_token, "token_type": "bearer"}
+
 @app.post("/portfolio/upload")
 async def upload_portfolio(
     file: UploadFile = File(...), 

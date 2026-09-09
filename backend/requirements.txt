@@ -12,3 +12,4 @@ yfinance
 passlib[bcrypt]
 PyJWT
 aiosqlite
+google-auth

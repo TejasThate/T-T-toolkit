@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -82,6 +83,27 @@ export default function Dashboard() {
     } catch (err) {
       console.error("Auth error", err);
       alert(`Network Error: Make sure your backend API is running at ${API_URL}`);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      const res = await fetch(`${API_URL}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: credentialResponse.credential })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setToken(data.access_token);
+        localStorage.setItem("token", data.access_token);
+      } else {
+        const error = await res.json();
+        alert(`Google Login Error: ${error.detail}`);
+      }
+    } catch (err) {
+      console.error("Google Auth error", err);
+      alert("Network Error with Google Login");
     }
   };
 
@@ -201,46 +223,65 @@ export default function Dashboard() {
   };
 
   if (!token) {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     return (
       <div className="container mx-auto py-20 flex justify-center items-center">
-        <Card className="w-[400px]">
-          <CardHeader>
-            <CardTitle>{isLoginView ? "Login" : "Sign Up"}</CardTitle>
-            <CardDescription>Access your Adaptive Portfolio</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  required 
+        <GoogleOAuthProvider clientId={clientId}>
+          <Card className="w-[400px]">
+            <CardHeader>
+              <CardTitle>{isLoginView ? "Login" : "Sign Up"}</CardTitle>
+              <CardDescription>Access your Adaptive Portfolio</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-6 flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => {
+                    alert('Google Login Failed');
+                  }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  required 
-                />
+              <div className="relative mb-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                </div>
               </div>
-              <Button type="submit" className="w-full">
-                {isLoginView ? "Login" : "Sign Up"}
-              </Button>
-            </form>
-            <div className="mt-4 text-center">
-              <Button variant="link" onClick={() => setIsLoginView(!isLoginView)}>
-                {isLoginView ? "Need an account? Sign up" : "Already have an account? Login"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <form onSubmit={handleAuth} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)} 
+                    required 
+                  />
+                </div>
+                <Button type="submit" className="w-full">
+                  {isLoginView ? "Login" : "Sign Up"}
+                </Button>
+              </form>
+              <div className="mt-4 text-center">
+                <Button variant="link" onClick={() => setIsLoginView(!isLoginView)}>
+                  {isLoginView ? "Need an account? Sign up" : "Already have an account? Login"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </GoogleOAuthProvider>
       </div>
     );
   }

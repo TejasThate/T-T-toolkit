@@ -10,6 +10,9 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class GoogleLoginRequest(BaseModel):
+    credential: str
+
 class HoldingBase(BaseModel):
     symbol: str
     company_name: str

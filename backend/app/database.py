@@ -9,7 +9,12 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://nivesh_user:nivesh_password@localhost:5433/nivesh_db")
 
-# asyncpg doesn't support the pgbouncer pooler string directly, so we use the direct connection string.
+# Automatically inject the asyncpg driver if missing
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
 engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

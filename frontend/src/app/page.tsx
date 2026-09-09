@@ -414,13 +414,6 @@ export default function Dashboard() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-      <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
-        <CardHeader>
-          <CardTitle className="font-semibold text-xl text-cyan-100">Your Holdings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {holdings.length === 0 ? (
-            <p className="text-sm text-cyan-200/60">No holdings found. Upload a CSV to get started.</p>
         <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
           <CardHeader>
             <CardTitle className="font-semibold text-xl text-cyan-100">Your Holdings</CardTitle>

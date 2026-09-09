@@ -274,7 +274,7 @@ export default function Dashboard() {
   };
 
   if (!token) {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "dummy_id_to_prevent_crash";
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "251614952431-j137o7u8qeu3b7rn93846bi4e1h5auop3.apps.googleusercontent.com";
     return (
       <div className="min-h-screen w-full flex bg-gradient-to-br from-[#080b1a] via-[#0d1529] to-[#0a1628] text-white overflow-hidden">
         

@@ -10,6 +10,7 @@ from fastapi import UploadFile, File
 
 from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service
+from .gmail_service import sync_demat_from_gmail
 
 app = FastAPI(title="T&T API", version="0.1.0")
 
@@ -67,9 +68,16 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 
 @app.post("/auth/google", response_model=schemas.Token)
 async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
-    idinfo = auth.verify_google_token(req.credential)
-    if not idinfo:
+    try:
+        # Exchange the auth code for tokens
+        token_data = auth.exchange_google_code(req.credential)
+    except Exception as e:
+        print(f"Token exchange failed: {e}")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google Token")
+        
+    idinfo = token_data.get("idinfo")
+    if not idinfo:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google ID Token")
     
     email = idinfo.get("email")
     if not email:
@@ -79,13 +87,24 @@ async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depen
     user = result.scalars().first()
     
     if not user:
-        # Auto-register user with random password since they use Google
+        # Auto-register user
         import secrets
         hashed_password = auth.get_password_hash(secrets.token_urlsafe(32))
-        user = models.User(email=email, hashed_password=hashed_password)
+        user = models.User(
+            email=email, 
+            hashed_password=hashed_password,
+            google_access_token=token_data.get("access_token"),
+            google_refresh_token=token_data.get("refresh_token")
+        )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+    else:
+        # Update tokens
+        user.google_access_token = token_data.get("access_token")
+        if token_data.get("refresh_token"):
+            user.google_refresh_token = token_data.get("refresh_token")
+            
+    await db.commit()
+    await db.refresh(user)
         
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
@@ -141,6 +160,26 @@ async def get_portfolio(
     # Fetch live market data in the background and update holdings
     holdings = await crud.update_live_prices(db, holdings)
     return holdings
+
+@app.post("/portfolio/sync-gmail")
+async def trigger_gmail_sync(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not current_user.google_access_token:
+        raise HTTPException(status_code=400, detail="Gmail not linked. Please login with Google.")
+        
+    result = await sync_demat_from_gmail(
+        db, 
+        current_user.id, 
+        current_user.google_access_token, 
+        current_user.google_refresh_token
+    )
+    
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+        
+    return result
 
 @app.post("/news/fetch")
 async def trigger_news_fetch(

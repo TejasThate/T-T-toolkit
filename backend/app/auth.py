@@ -11,8 +11,10 @@ from .database import get_db
 from .models import User
 from google.oauth2 import id_token
 from google.auth.transport import requests
+from google_auth_oauthlib.flow import Flow
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-jwt-keep-it-secret")
 
 def verify_google_token(token: str):
@@ -21,6 +23,34 @@ def verify_google_token(token: str):
         return idinfo
     except ValueError:
         return None
+
+def exchange_google_code(code: str, redirect_uri: str = 'postmessage'):
+    client_config = {
+        "web": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+    }
+    
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly'],
+        redirect_uri=redirect_uri
+    )
+    
+    flow.fetch_token(code=code)
+    credentials = flow.credentials
+    
+    # Verify the ID token to get email
+    idinfo = verify_google_token(credentials.id_token)
+    
+    return {
+        "idinfo": idinfo,
+        "access_token": credentials.token,
+        "refresh_token": credentials.refresh_token
+    }
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 

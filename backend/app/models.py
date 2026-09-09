@@ -8,6 +8,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    google_access_token = Column(String, nullable=True)
+    google_refresh_token = Column(String, nullable=True)
 
 class Holding(Base):
     __tablename__ = "holdings"

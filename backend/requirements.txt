@@ -11,3 +11,4 @@ aiohttp
 yfinance
 passlib[bcrypt]
 PyJWT
+aiosqlite

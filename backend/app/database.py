@@ -7,16 +7,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://nivesh_user:nivesh_password@localhost:5433/nivesh_db")
-
-# Automatically inject the asyncpg driver if missing
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
-elif DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+# Use SQLite by default, storing the file locally.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./tandt.db")
 
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
-engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True)
+
+# SQLite requires check_same_thread=False
+connect_args = {"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
+
+engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True, connect_args=connect_args)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()

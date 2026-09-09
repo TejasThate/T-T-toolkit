@@ -276,79 +276,211 @@ export default function Dashboard() {
   if (!token) {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "dummy_id_to_prevent_crash";
     return (
-      <div className="container mx-auto min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] text-white">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.5 }}
-          className="mb-8 text-center"
-        >
-          <h1 className="text-5xl font-bold tracking-tighter mb-4">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">T&T</span> Toolkit
-          </h1>
-          <p className="text-cyan-100/80 mt-2 text-sm">Sign in to your intelligent portfolio</p>
-        </motion.div>
+      <div className="min-h-screen w-full flex bg-gradient-to-br from-[#080b1a] via-[#0d1529] to-[#0a1628] text-white overflow-hidden">
         
-        <GoogleOAuthProvider clientId={clientId}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+        {/* LEFT PANEL — Animated Stock Market Visual */}
+        <div className="hidden lg:flex flex-1 flex-col justify-between p-12 relative overflow-hidden">
+          {/* Animated gradient orbs */}
+          <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-cyan-500/10 blur-[120px] animate-pulse" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[400px] h-[400px] rounded-full bg-indigo-500/10 blur-[120px] animate-pulse" style={{animationDelay:'1.5s'}} />
+
+          {/* Brand */}
+          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}>
+            <h1 className="text-3xl font-bold tracking-tight">
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T</span>
+              <span className="text-white"> Toolkit</span>
+            </h1>
+          </motion.div>
+
+          {/* Animated SVG Stock Chart */}
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="flex-1 flex flex-col justify-center"
           >
-            <Card className="w-[400px] bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl overflow-hidden">
-              <CardContent className="pt-8">
-              <div className="mb-6 flex justify-center">
+            {/* Ticker strip */}
+            <div className="flex gap-6 mb-8 overflow-hidden">
+              {[
+                { sym: 'RELIANCE', val: '+2.4%', up: true },
+                { sym: 'TCS', val: '+1.1%', up: true },
+                { sym: 'INFY', val: '-0.8%', up: false },
+                { sym: 'HDFC', val: '+3.2%', up: true },
+                { sym: 'WIPRO', val: '-1.5%', up: false },
+              ].map((t, i) => (
+                <motion.div 
+                  key={t.sym}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + i * 0.1 }}
+                  className="flex flex-col items-center bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl px-4 py-3 min-w-[90px]"
+                >
+                  <span className="text-xs text-slate-400 font-medium">{t.sym}</span>
+                  <span className={`text-sm font-bold mt-1 ${t.up ? 'text-emerald-400' : 'text-rose-400'}`}>{t.val}</span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* SVG Animated Line Chart */}
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-6 relative">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="text-xs text-slate-400 uppercase tracking-widest">Portfolio Value</p>
+                  <p className="text-3xl font-bold text-white mt-1">₹4,82,350</p>
+                  <p className="text-emerald-400 text-sm font-semibold mt-0.5">▲ +₹12,840 (2.73%) today</p>
+                </div>
+                <div className="flex gap-2">
+                  {['1D','1W','1M','1Y'].map(p => (
+                    <button key={p} className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${p === '1M' ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-white bg-white/5'}`}>{p}</button>
+                  ))}
+                </div>
+              </div>
+              <svg viewBox="0 0 500 160" className="w-full" preserveAspectRatio="none" style={{height:'160px'}}>
+                <defs>
+                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.4"/>
+                    <stop offset="100%" stopColor="#06b6d4" stopOpacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#6366f1"/>
+                    <stop offset="100%" stopColor="#06b6d4"/>
+                  </linearGradient>
+                </defs>
+                {/* Grid lines */}
+                {[40,80,120].map(y => (
+                  <line key={y} x1="0" y1={y} x2="500" y2={y} stroke="white" strokeOpacity="0.05" strokeWidth="1"/>
+                ))}
+                {/* Area fill */}
+                <motion.path
+                  d="M0,130 C30,120 60,90 100,85 C140,80 160,95 200,75 C240,55 260,40 300,35 C340,30 360,55 400,40 C440,25 470,20 500,15 L500,160 L0,160 Z"
+                  fill="url(#chartGrad)"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1.5, delay: 0.5 }}
+                />
+                {/* Main line */}
+                <motion.path
+                  d="M0,130 C30,120 60,90 100,85 C140,80 160,95 200,75 C240,55 260,40 300,35 C340,30 360,55 400,40 C440,25 470,20 500,15"
+                  fill="none"
+                  stroke="url(#lineGrad)"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  initial={{ pathLength: 0, opacity: 0 }}
+                  animate={{ pathLength: 1, opacity: 1 }}
+                  transition={{ duration: 2, delay: 0.3, ease: "easeInOut" }}
+                />
+                {/* Animated dot at the end */}
+                <motion.circle
+                  cx="500" cy="15" r="5" fill="#06b6d4"
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: [0,1,1,0.5,1], scale: 1 }}
+                  transition={{ duration: 2, delay: 2.2, repeat: Infinity, repeatType: 'loop', repeatDelay: 1 }}
+                />
+              </svg>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              {[
+                { label: 'Total Invested', val: '₹3,80,000', color: 'text-white' },
+                { label: 'Total Gain', val: '+₹1,02,350', color: 'text-emerald-400' },
+                { label: 'Returns', val: '+26.9%', color: 'text-cyan-400' },
+              ].map((s, i) => (
+                <motion.div 
+                  key={s.label}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1 + i * 0.1 }}
+                  className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4"
+                >
+                  <p className="text-xs text-slate-400">{s.label}</p>
+                  <p className={`text-lg font-bold mt-1 ${s.color}`}>{s.val}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Footer text */}
+          <motion.p 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
+            className="text-slate-500 text-sm"
+          >
+            Real-time portfolio intelligence powered by AI
+          </motion.p>
+        </div>
+
+        {/* RIGHT PANEL — Login Form */}
+        <div className="flex flex-1 lg:max-w-[480px] flex-col justify-center items-center px-8 py-12 relative">
+          {/* Subtle right-panel background */}
+          <div className="absolute inset-0 bg-white/[0.02] backdrop-blur-sm border-l border-white/10 hidden lg:block" />
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="w-full max-w-[380px] relative z-10"
+          >
+            {/* Mobile-only brand */}
+            <div className="lg:hidden text-center mb-10">
+              <h1 className="text-4xl font-bold tracking-tight">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T</span>
+                <span className="text-white"> Toolkit</span>
+              </h1>
+            </div>
+
+            <h2 className="text-2xl font-bold text-white mb-2">Welcome back</h2>
+            <p className="text-slate-400 text-sm mb-8">Sign in to access your portfolio dashboard</p>
+
+            <GoogleOAuthProvider clientId={clientId}>
+              <div className="mb-6">
                 <CustomGoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    alert('Google Login Failed');
-                  }}
+                  onError={() => { alert('Google Login Failed'); }}
                 />
               </div>
               <div className="relative mb-6">
                 <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
+                  <span className="w-full border-t border-white/10" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-transparent px-2 text-cyan-200/60 font-medium">Or</span>
+                  <span className="bg-[#0d1529] px-3 text-slate-500 font-medium tracking-wider">or continue with email</span>
                 </div>
               </div>
               <form onSubmit={handleAuth} className="space-y-4">
-                <div className="space-y-2">
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="Email or phone"
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    required 
-                    className="h-14 rounded-xl bg-white/5 border-white/10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="Enter your password"
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    required 
-                    className="h-14 rounded-xl bg-white/5 border-white/10 text-white placeholder:text-white/50 focus-visible:ring-cyan-500"
-                  />
-                </div>
-                <div className="flex justify-between items-center pt-4">
-                  <Button type="button" variant="link" onClick={() => setIsLoginView(!isLoginView)} className="px-0 text-cyan-300 hover:text-cyan-200">
-                    {isLoginView ? "Create account" : "Sign in instead"}
-                  </Button>
-                  <Button type="submit" className="rounded-full px-8 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white border-0">
-                    {isLoginView ? "Next" : "Create"}
-                  </Button>
-                </div>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="Email address"
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  required 
+                  className="h-14 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500 focus-visible:border-cyan-500/50 text-base"
+                />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="Password"
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  required 
+                  className="h-14 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500 focus-visible:border-cyan-500/50 text-base"
+                />
+                <Button 
+                  type="submit" 
+                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white border-0 font-semibold text-base shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.01]"
+                >
+                  {isLoginView ? "Sign In" : "Create Account"}
+                </Button>
+                <p className="text-center text-sm text-slate-400 pt-2">
+                  {isLoginView ? "Don't have an account? " : "Already have an account? "}
+                  <button type="button" onClick={() => setIsLoginView(!isLoginView)} className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors">
+                    {isLoginView ? "Create one" : "Sign in"}
+                  </button>
+                </p>
               </form>
-            </CardContent>
-          </Card>
+            </GoogleOAuthProvider>
           </motion.div>
-        </GoogleOAuthProvider>
+        </div>
       </div>
     );
   }

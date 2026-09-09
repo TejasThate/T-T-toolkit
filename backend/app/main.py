@@ -35,7 +35,11 @@ async def startup():
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to T&T API"}
+    return {"message": "T&T Toolkit API is running. Try /docs for API documentation."}
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
 
 @app.post("/auth/register", response_model=schemas.Token)
 async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):

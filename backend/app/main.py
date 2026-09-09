@@ -23,9 +23,14 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    async with engine.begin() as conn:
-        # Run table creation (not recommended for production, use alembic)
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            # Run table creation (not recommended for production, use alembic)
+            await conn.run_sync(Base.metadata.create_all)
+        print("Successfully connected to the database and created tables.")
+    except Exception as e:
+        print(f"Failed to connect to the database on startup: {e}")
+        print("The app will still start, but database operations will fail until DATABASE_URL is corrected.")
 
 @app.get("/")
 def read_root():

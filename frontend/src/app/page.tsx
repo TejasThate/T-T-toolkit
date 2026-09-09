@@ -72,11 +72,16 @@ export default function Dashboard() {
         setToken(data.access_token);
         localStorage.setItem("token", data.access_token);
       } else {
-        const error = await res.json();
-        alert(`Error: ${error.detail}`);
+        try {
+            const error = await res.json();
+            alert(`Error: ${error.detail || "Database connection failed"}`);
+        } catch(e) {
+            alert(`Server Error (500). Please check if your DATABASE_URL is valid in Render!`);
+        }
       }
     } catch (err) {
       console.error("Auth error", err);
+      alert(`Network Error: Make sure your backend API is running at ${API_URL}`);
     }
   };
 

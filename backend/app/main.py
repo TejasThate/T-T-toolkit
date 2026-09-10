@@ -12,6 +12,13 @@ from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service
 from .gmail_service import sync_demat_from_gmail
 
+import socket
+old_getaddrinfo = socket.getaddrinfo
+def new_getaddrinfo(*args, **kwargs):
+    responses = old_getaddrinfo(*args, **kwargs)
+    return [response for response in responses if response[0] == socket.AF_INET]
+socket.getaddrinfo = new_getaddrinfo
+
 app = FastAPI(title="T&T API", version="0.1.0")
 
 app.add_middleware(

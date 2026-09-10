@@ -18,7 +18,7 @@ export default function Dashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoginView, setIsLoginView] = useState(true);
+  const [isLoginView, setIsLoginView] = useState(false);
 
   const [holdings, setHoldings] = useState([]);
   const [news, setNews] = useState([]);
@@ -401,33 +401,13 @@ export default function Dashboard() {
               </h1>
             </div>
 
-            <h2 className="text-2xl font-bold text-white mb-2">Welcome back</h2>
-            <p className="text-slate-400 text-sm mb-8">Sign in to access your portfolio dashboard</p>
+            <h2 className="text-2xl font-bold text-white mb-2">{isLoginView ? "Welcome back" : "Get Started"}</h2>
+            <p className="text-slate-400 text-sm mb-8">{isLoginView ? "Sign in to access your portfolio dashboard" : "Create an account to track your portfolio"}</p>
 
-            <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-              <div className="mb-6">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => alert('Google Login Failed')}
-                  useOneTap={false}
-                  width="380"
-                  theme="filled_black"
-                  shape="pill"
-                  text="continue_with"
-                />
-              </div>
-              <div className="relative mb-6">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t border-white/10" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-[#0d1529] px-3 text-slate-500 font-medium tracking-wider">or continue with email</span>
-                </div>
-              </div>
-              <form onSubmit={handleAuth} className="space-y-4">
-                <Input 
-                  id="email" 
-                  type="email" 
+            <form onSubmit={handleAuth} className="space-y-4">
+              <Input 
+                id="email" 
+                type="email" 
                   placeholder="Email address"
                   value={email} 
                   onChange={e => setEmail(e.target.value)} 
@@ -456,7 +436,6 @@ export default function Dashboard() {
                   </button>
                 </p>
               </form>
-            </GoogleOAuthProvider>
           </motion.div>
         </div>
       </div>

@@ -15,10 +15,8 @@ const GOOGLE_CLIENT_ID = "251614952431-j137o7u8qeu3b7n93846bi4e1h5auop3.apps.goo
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
 export default function Dashboard() {
-  const [token, setToken] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoginView, setIsLoginView] = useState(false);
+  const [token, setToken] = useState<string | null>("dummy-token");
+  const [started, setStarted] = useState(false);
 
   const [holdings, setHoldings] = useState([]);
   const [news, setNews] = useState([]);
@@ -370,74 +368,19 @@ export default function Dashboard() {
                   <p className={`text-lg font-bold mt-1 ${s.color}`}>{s.val}</p>
                 </motion.div>
               ))}
-            </div>
-          </motion.div>
-
-          {/* Footer text */}
-          <motion.p 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}
-            className="text-slate-500 text-sm"
+      <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] flex flex-col justify-center items-center text-slate-100 p-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md text-center space-y-8">
+          <h1 className="text-5xl font-bold tracking-tight">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T Toolkit</span>
+          </h1>
+          <p className="text-slate-400 text-lg">Adaptive Portfolio Intelligence</p>
+          <Button 
+            onClick={() => setStarted(true)}
+            className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-lg shadow-[0_0_40px_rgba(6,182,212,0.4)] transition-all hover:scale-105"
           >
-            Real-time portfolio intelligence powered by AI
-          </motion.p>
-        </div>
-
-        {/* RIGHT PANEL — Login Form */}
-        <div className="flex flex-1 lg:max-w-[480px] flex-col justify-center items-center px-8 py-12 relative">
-          {/* Subtle right-panel background */}
-          <div className="absolute inset-0 bg-white/[0.02] backdrop-blur-sm border-l border-white/10 hidden lg:block" />
-          
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="w-full max-w-[380px] relative z-10"
-          >
-            {/* Mobile-only brand */}
-            <div className="lg:hidden text-center mb-10">
-              <h1 className="text-4xl font-bold tracking-tight">
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T</span>
-                <span className="text-white"> Toolkit</span>
-              </h1>
-            </div>
-
-            <h2 className="text-2xl font-bold text-white mb-2">{isLoginView ? "Welcome back" : "Get Started"}</h2>
-            <p className="text-slate-400 text-sm mb-8">{isLoginView ? "Sign in to access your portfolio dashboard" : "Create an account to track your portfolio"}</p>
-
-            <form onSubmit={handleAuth} className="space-y-4">
-              <Input 
-                id="email" 
-                type="email" 
-                  placeholder="Email address"
-                  value={email} 
-                  onChange={e => setEmail(e.target.value)} 
-                  required 
-                  className="h-14 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500 focus-visible:border-cyan-500/50 text-base"
-                />
-                <Input 
-                  id="password" 
-                  type="password" 
-                  placeholder="Password"
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  required 
-                  className="h-14 rounded-2xl bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-cyan-500 focus-visible:border-cyan-500/50 text-base"
-                />
-                <Button 
-                  type="submit" 
-                  className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white border-0 font-semibold text-base shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.01]"
-                >
-                  {isLoginView ? "Sign In" : "Create Account"}
-                </Button>
-                <p className="text-center text-sm text-slate-400 pt-2">
-                  {isLoginView ? "Don't have an account? " : "Already have an account? "}
-                  <button type="button" onClick={() => setIsLoginView(!isLoginView)} className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors">
-                    {isLoginView ? "Create one" : "Sign in"}
-                  </button>
-                </p>
-              </form>
-          </motion.div>
-        </div>
+            Get Started
+          </Button>
+        </motion.div>
       </div>
     );
   }

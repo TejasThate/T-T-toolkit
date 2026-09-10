@@ -73,16 +73,14 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 @app.post("/auth/google", response_model=schemas.Token)
 async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
     try:
-        # Exchange the auth code for tokens
-        token_data = auth.exchange_google_code(req.credential)
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as grequests
+        GOOGLE_CLIENT_ID = "251614952431-j137o7u8qeu3b7n93846bi4e1h5auop3.apps.googleusercontent.com"
+        idinfo = id_token.verify_oauth2_token(req.credential, grequests.Request(), GOOGLE_CLIENT_ID)
     except Exception as e:
-        print(f"Token exchange failed: {e}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google Token")
+        print(f"ID token verification failed: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Google Token: {e}")
         
-    idinfo = token_data.get("idinfo")
-    if not idinfo:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google ID Token")
-    
     email = idinfo.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Google token missing email")
@@ -91,22 +89,11 @@ async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depen
     user = result.scalars().first()
     
     if not user:
-        # Auto-register user
         import secrets
         hashed_password = auth.get_password_hash(secrets.token_urlsafe(32))
-        user = models.User(
-            email=email, 
-            hashed_password=hashed_password,
-            google_access_token=token_data.get("access_token"),
-            google_refresh_token=token_data.get("refresh_token")
-        )
+        user = models.User(email=email, hashed_password=hashed_password)
         db.add(user)
-    else:
-        # Update tokens
-        user.google_access_token = token_data.get("access_token")
-        if token_data.get("refresh_token"):
-            user.google_refresh_token = token_data.get("refresh_token")
-            
+    
     await db.commit()
     await db.refresh(user)
         

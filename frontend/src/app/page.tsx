@@ -32,7 +32,7 @@ export default function Dashboard() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://t-t-toolkit.onrender.com";
 
   useEffect(() => {
     const savedToken = localStorage.getItem("token");

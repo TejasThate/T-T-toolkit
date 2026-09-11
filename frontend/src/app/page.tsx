@@ -174,26 +174,9 @@ export default function Dashboard() {
   };
 
   const handleGmailSync = async () => {
-    setUploading(true);
-    try {
-      const res = await fetch(`${API_URL}/portfolio/sync-gmail`, {
-        method: "POST",
-        headers: getHeaders()
-      });
-      const data = await res.json();
-      if (res.ok) {
-        alert(data.message);
-        fetchPortfolio();
-      } else {
-        alert(`Sync Failed: ${data.detail}`);
-      }
-    } catch (err) {
-      console.error("Gmail sync error:", err);
-      alert("Failed to connect to sync engine.");
-    } finally {
-      setUploading(false);
-    }
+    alert("Gmail Sync is currently disabled because Google Login was removed from the app.");
   };
+
 
   if (!started) {
     return (

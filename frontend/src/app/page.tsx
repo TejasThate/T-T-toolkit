@@ -80,6 +80,9 @@ export default function Dashboard() {
       if (res.ok) {
         const data = await res.json();
         setNews(data);
+      } else {
+        const err = await res.json();
+        console.error("News fetch error:", err);
       }
     } catch (err) {
       console.error("Failed to fetch news:", err);
@@ -104,10 +107,12 @@ export default function Dashboard() {
         alert("Portfolio updated successfully!");
         fetchPortfolio();
       } else {
-        alert("Failed to upload portfolio");
+        const errData = await res.json();
+        alert(`Failed to upload portfolio: ${errData.detail || 'Unknown Error'}`);
       }
     } catch (err) {
       console.error("Error uploading file:", err);
+      alert(`Network error uploading file.`);
     }
     setUploading(false);
   };
@@ -120,10 +125,16 @@ export default function Dashboard() {
         headers: getHeaders()
       });
       if (res.ok) {
+        const data = await res.json();
+        alert(data.message);
         await fetchNews();
+      } else {
+        const errData = await res.json();
+        alert(`Failed to fetch news: ${errData.detail || 'Server error'}`);
       }
     } catch (err) {
       console.error("Failed to fetch latest news:", err);
+      alert(`Network error fetching news.`);
     } finally {
       setFetchingNews(false);
     }

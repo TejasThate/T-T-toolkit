@@ -212,59 +212,115 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="container mx-auto py-8 px-4">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      <main className="container mx-auto py-12 px-4 max-w-6xl space-y-16">
+        
+        {/* HERO SECTION: AI Assistant */}
+        <div className="flex flex-col items-center text-center space-y-6 mt-4">
+          <h2 className="text-3xl md:text-4xl font-light text-slate-300">Ask anything about</h2>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-orange-400 via-rose-400 to-pink-500 pb-2">
+            Markets, Stocks & Your Portfolio
+          </h1>
           
-          {/* Main Left Column (Wider) */}
-          <div className="xl:col-span-2 space-y-8">
-            
-            {/* Top row actions */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="grid gap-6 md:grid-cols-2">
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">Portfolio Sync</CardTitle>
-                  <CardDescription className="text-cyan-200/60">Upload your Groww CSV statement to analyze your holdings.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4">
+          <div className="w-full max-w-3xl mt-8">
+            <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-2xl rounded-3xl overflow-hidden">
+              <div className="flex flex-col">
+                <div className="bg-black/20 p-6 min-h-[120px] max-h-[300px] overflow-y-auto whitespace-pre-wrap text-left custom-scrollbar">
+                  {chatHistory.length === 0 ? (
+                    <div className="flex items-center text-cyan-200/60 italic h-full justify-center opacity-70">
+                      <span>✨ Give me today's market summary or ask about your holdings...</span>
+                    </div>
+                  ) : (
+                    chatHistory.map((msg, idx) => (
+                      <div key={idx} className={`mb-4 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                        <span className={`inline-block p-3 rounded-2xl shadow-md ${msg.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-sm' : 'bg-white/10 text-slate-100 border border-white/10 rounded-bl-sm'}`}>
+                          {msg.content}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  {isChatLoading && <p className="text-cyan-200/60 italic mt-2 animate-pulse text-left">AI is thinking...</p>}
+                </div>
+                <div className="p-4 bg-white/5 border-t border-white/10">
+                  <form onSubmit={handleChatSubmit} className="flex gap-3">
                     <Input 
-                      type="file" 
-                      accept=".csv" 
-                      ref={fileInputRef}
-                      onChange={handleFileUpload} 
-                      disabled={uploading} 
-                      className="hidden"
+                      value={chatQuery}
+                      onChange={e => setChatQuery(e.target.value)}
+                      placeholder="Ask T&T Assistant..."
+                      disabled={isChatLoading}
+                      className="rounded-full bg-black/20 border-white/10 h-14 px-6 text-white placeholder:text-white/40 focus-visible:ring-indigo-500 text-lg shadow-inner"
                     />
-                    <Button variant="outline" className="rounded-full border-white/20 hover:bg-white/10 text-white" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      {uploading ? "Uploading..." : "Upload CSV Manually"}
+                    <Button type="submit" className="rounded-full h-14 px-8 bg-indigo-600 hover:bg-indigo-500 text-white font-medium border-0 shadow-lg transition-transform active:scale-95" disabled={isChatLoading || !chatQuery.trim()}>
+                      <span className="mr-2">✦</span> Ask
                     </Button>
-                    <Button 
-                      onClick={handleGmailSync} 
-                      disabled={uploading}
-                      className="rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-300 hover:to-teal-400 text-white border-0 shadow-lg shadow-emerald-500/20"
-                    >
-                      {uploading ? "Syncing..." : "Sync via Gmail"}
-                    </Button>
+                  </form>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* NEWS SECTION: 2x2 Grid Pills */}
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-sm font-medium text-slate-400 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              What is impacting the market today...
+            </p>
+            <Button variant="ghost" className="text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-full h-8 px-4" onClick={handleFetchNews} disabled={fetchingNews}>
+              {fetchingNews ? "Fetching..." : "Refresh News"}
+            </Button>
+          </div>
+          
+          {news.length === 0 ? (
+            <div className="text-center p-8 border border-white/5 rounded-3xl bg-white/5">
+              <p className="text-slate-400 mb-4">No news fetched yet.</p>
+              <Button onClick={handleFetchNews} className="rounded-full bg-white/10 hover:bg-white/20 text-white">Fetch Latest News</Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {news.slice(0, 6).map((n: any) => (
+                <a 
+                  key={n.id} 
+                  href={n.link} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="group flex flex-col justify-between p-5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-3xl transition-all shadow-lg hover:shadow-indigo-500/10"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-[15px] font-medium text-slate-200 group-hover:text-indigo-300 leading-snug mb-2 transition-colors">
+                        {n.title}
+                      </p>
+                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
+                        {n.impact_reason}
+                      </p>
+                    </div>
+                    <span className="text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all mt-1 shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
+                  
+                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${n.impact_score > 6 ? 'bg-emerald-500/20 text-emerald-400' : n.impact_score < 4 ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-500/20 text-slate-300'}`}>
+                      Impact: {n.impact_score} / 10
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'General Market'}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
 
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">News Engine</CardTitle>
-                  <CardDescription className="text-cyan-200/60">Fetch latest market news and rate impact.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button className="rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white border-0 shadow-lg shadow-indigo-500/20" onClick={handleFetchNews} disabled={fetchingNews}>
-                    {fetchingNews ? "Fetching..." : "Fetch Latest News"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            {/* Holdings section */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
+        {/* BOTTOM SECTION: Holdings & Sync */}
+        <div className="max-w-6xl mx-auto pt-8 border-t border-white/10">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div className="xl:col-span-2">
+              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl h-full">
                 <CardHeader>
                   <CardTitle className="font-semibold text-xl text-cyan-100">Your Holdings</CardTitle>
                 </CardHeader>
@@ -272,8 +328,8 @@ export default function Dashboard() {
                   {holdings.length === 0 ? (
                     <p className="text-sm text-cyan-200/60">No holdings found. Upload a CSV to get started.</p>
                   ) : (
-                    <div className="grid md:grid-cols-2 gap-8 items-start">
-                      <div className="overflow-x-auto">
+                    <div className="flex flex-col gap-8">
+                      <div className="overflow-x-auto custom-scrollbar pb-2">
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -282,14 +338,14 @@ export default function Dashboard() {
                               <TableHead className="text-right text-cyan-200/60">Quantity</TableHead>
                               <TableHead className="text-right text-cyan-200/60">Avg Price</TableHead>
                               <TableHead className="text-right text-cyan-200/60">Live Price</TableHead>
-                              <TableHead className="text-right text-cyan-200/60">Total Value</TableHead>
+                              <TableHead className="text-right text-cyan-200/60">Total</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {holdings.map((h: any) => (
                               <TableRow key={h.id} className="border-white/10 hover:bg-white/5">
                                 <TableCell className="font-medium text-cyan-100">{h.symbol}</TableCell>
-                                <TableCell className="text-slate-300 whitespace-nowrap">{h.company_name}</TableCell>
+                                <TableCell className="text-slate-300 whitespace-nowrap max-w-[150px] truncate" title={h.company_name}>{h.company_name}</TableCell>
                                 <TableCell className="text-right text-slate-300">{h.quantity}</TableCell>
                                 <TableCell className="text-right text-slate-300">₹{h.average_price?.toFixed(2) || 0}</TableCell>
                                 <TableCell className={`text-right ${h.current_price > h.average_price ? 'text-emerald-400' : h.current_price < h.average_price ? 'text-rose-400' : 'text-slate-300'}`}>
@@ -303,18 +359,17 @@ export default function Dashboard() {
                           </TableBody>
                         </Table>
                       </div>
-                      <div className="h-[300px] w-full min-w-[200px]">
-                        <h3 className="text-center font-semibold mb-2 text-cyan-100">Portfolio Allocation</h3>
+                      <div className="h-[250px] w-full flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
                               data={holdings.map((h: any) => ({ name: h.symbol, value: h.quantity * (h.current_price || h.average_price) }))}
                               cx="50%"
                               cy="50%"
+                              innerRadius={60}
                               outerRadius={80}
-                              fill="#8884d8"
+                              paddingAngle={5}
                               dataKey="value"
-                              label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                             >
                               {holdings.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -328,80 +383,44 @@ export default function Dashboard() {
                   )}
                 </CardContent>
               </Card>
-            </motion.div>
-
-            {/* AI Assistant */}
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.3 }}>
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl mb-8">
+            </div>
+            
+            <div className="space-y-8">
+              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
                 <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">AI Portfolio Assistant</CardTitle>
-                  <CardDescription className="text-cyan-200/60">Ask questions about your portfolio, market trends, or stock insights.</CardDescription>
+                  <CardTitle className="font-semibold text-xl text-cyan-100">Portfolio Sync</CardTitle>
+                  <CardDescription className="text-cyan-200/60">Upload your Groww CSV statement.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col space-y-4">
-                    <div className="bg-black/20 p-6 rounded-2xl min-h-[150px] max-h-[300px] overflow-y-auto whitespace-pre-wrap shadow-inner border border-white/5">
-                      {chatHistory.length === 0 ? (
-                        <p className="text-cyan-200/60 italic">Hello! I'm your AI portfolio assistant. How can I help you today?</p>
-                      ) : (
-                        chatHistory.map((msg, idx) => (
-                          <div key={idx} className={`mb-4 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                            <span className={`inline-block p-3 rounded-2xl shadow-md ${msg.role === 'user' ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-br-sm' : 'bg-white/10 text-slate-100 border border-white/10 rounded-bl-sm'}`}>
-                              {msg.content}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                      {isChatLoading && <p className="text-cyan-200/60 italic mt-2 animate-pulse">AI is thinking...</p>}
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col gap-3">
+                    <Input 
+                      type="file" 
+                      accept=".csv" 
+                      ref={fileInputRef}
+                      onChange={handleFileUpload} 
+                      disabled={uploading} 
+                      className="hidden"
+                    />
+                    <Button variant="outline" className="w-full rounded-xl h-12 border-white/20 hover:bg-white/10 text-white" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                      {uploading ? "Uploading..." : "Upload CSV Manually"}
+                    </Button>
+                    <div className="relative flex items-center py-2">
+                      <div className="flex-grow border-t border-white/10"></div>
+                      <span className="flex-shrink-0 mx-4 text-white/30 text-xs uppercase">OR</span>
+                      <div className="flex-grow border-t border-white/10"></div>
                     </div>
-                    <form onSubmit={handleChatSubmit} className="flex gap-3">
-                      <Input 
-                        value={chatQuery}
-                        onChange={e => setChatQuery(e.target.value)}
-                        placeholder="E.g., Which of my stocks is most risky right now?"
-                        disabled={isChatLoading}
-                        className="rounded-full bg-white/5 border-white/10 h-14 px-6 text-white placeholder:text-white/40 focus-visible:ring-cyan-500"
-                      />
-                      <Button type="submit" className="rounded-full h-14 px-8 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 border-0 shadow-lg" disabled={isChatLoading || !chatQuery.trim()}>Send</Button>
-                    </form>
+                    <Button 
+                      onClick={handleGmailSync} 
+                      disabled={uploading}
+                      className="w-full rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                    >
+                      Sync via Gmail (Disabled)
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
-
+            </div>
           </div>
-
-          {/* Right Column (News Side Panel) */}
-          <div className="space-y-8">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="h-full">
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl h-full">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">Impact-Rated News</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {news.length === 0 ? (
-                    <p className="text-sm text-cyan-200/60">No news fetched yet. Click "Fetch Latest News".</p>
-                  ) : (
-                    <div className="space-y-4 max-h-[800px] overflow-y-auto pr-4 custom-scrollbar">
-                      {news.map((n: any) => (
-                        <div key={n.id} className="border-b border-white/10 pb-4 last:border-0 last:pb-0 hover:bg-white/5 p-4 rounded-xl transition-colors">
-                          <a href={n.link} target="_blank" rel="noreferrer" className="text-base font-semibold text-cyan-50 hover:text-cyan-300 block mb-2 leading-tight">
-                            {n.title}
-                          </a>
-                          <div className="flex flex-col gap-2 mt-2 text-xs">
-                            <span className={`inline-block px-2 py-1 rounded-md font-medium w-max ${n.impact_score > 6 ? 'bg-emerald-500/20 text-emerald-300' : n.impact_score < 4 ? 'bg-rose-500/20 text-rose-300' : 'bg-indigo-500/20 text-indigo-300'}`}>
-                              Impact: {n.impact_score} / 10
-                            </span>
-                            <span className="text-cyan-200/60 leading-relaxed">{n.impact_reason}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-
         </div>
       
       </main>

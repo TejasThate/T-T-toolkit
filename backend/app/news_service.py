@@ -58,7 +58,7 @@ async def analyze_impact(title: str, summary: str):
     try:
         response = await client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
+            model="mixtral-8x7b-32768",
             temperature=0,
             response_format={"type": "json_object"}
         )

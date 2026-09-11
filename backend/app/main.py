@@ -241,7 +241,7 @@ async def ai_chat(
             
         response = await news_service.client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
+            model="mixtral-8x7b-32768",
             temperature=0.7,
         )
         return {"reply": response.choices[0].message.content}

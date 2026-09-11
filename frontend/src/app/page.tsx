@@ -198,7 +198,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] text-slate-100 selection:bg-cyan-500/30">
+    <div className="min-h-screen bg-[#111113] text-slate-200 selection:bg-cyan-500/30 font-inter">
       {/* Header / Navbar */}
       <header className="bg-white/5 backdrop-blur-md border-b border-white/10 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-lg">
         <div className="flex items-center gap-2">

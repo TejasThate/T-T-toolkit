@@ -58,7 +58,7 @@ async def analyze_impact(title: str, summary: str):
     try:
         response = await client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192",  # Updated to the correct active Groq model
+            model="llama-3.3-70b-versatile",
             temperature=0,
             response_format={"type": "json_object"}
         )

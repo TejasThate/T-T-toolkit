@@ -46,67 +46,6 @@ export default function Dashboard() {
     }
   }, [token]);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const endpoint = isLoginView ? "/auth/login" : "/auth/register";
-    
-    try {
-      let res;
-      if (isLoginView) {
-        const formData = new URLSearchParams();
-        formData.append("username", email);
-        formData.append("password", password);
-        res = await fetch(`${API_URL}${endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData.toString()
-        });
-      } else {
-        res = await fetch(`${API_URL}${endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password })
-        });
-      }
-
-      if (res.ok) {
-        const data = await res.json();
-        setToken(data.access_token);
-        localStorage.setItem("token", data.access_token);
-      } else {
-        try {
-            const error = await res.json();
-            alert(`Error: ${error.detail || "Database connection failed"}`);
-        } catch(e) {
-            alert(`Server Error (500). Please check if your DATABASE_URL is valid in Render!`);
-        }
-      }
-    } catch (err) {
-      console.error("Auth error", err);
-      alert(`Network Error: Make sure your backend API is running at ${API_URL}`);
-    }
-  };
-
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    try {
-      const res = await fetch(`${API_URL}/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ credential: credentialResponse.credential })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setToken(data.access_token);
-        localStorage.setItem("token", data.access_token);
-      } else {
-        const error = await res.json();
-        alert(`Google Login Error: ${error.detail}`);
-      }
-    } catch (err) {
-      console.error("Google Auth error", err);
-      alert("Network Error with Google Login");
-    }
-  };
 
   const handleLogout = () => {
     setToken(null);

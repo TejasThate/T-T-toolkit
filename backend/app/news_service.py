@@ -63,8 +63,16 @@ async def analyze_impact(title: str, summary: str):
             response_format={"type": "json_object"}
         )
         
-        # Parse JSON
-        result_text = response.choices[0].message.content
+        # Parse JSON and strip markdown if present
+        result_text = response.choices[0].message.content.strip()
+        if result_text.startswith("```json"):
+            result_text = result_text[7:]
+        elif result_text.startswith("```"):
+            result_text = result_text[3:]
+        if result_text.endswith("```"):
+            result_text = result_text[:-3]
+        result_text = result_text.strip()
+        
         data = json.loads(result_text)
         return float(data.get("impact_score", 5.0)), data.get("impact_reason", "AI analyzed."), data.get("affected_symbol", "NONE")
     except Exception as e:
@@ -95,7 +103,10 @@ def mock_analyze_impact(title: str, summary: str):
 
 async def fetch_feed(session, url):
     try:
-        async with session.get(url, timeout=10) as response:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        async with session.get(url, timeout=10, headers=headers) as response:
             content = await response.text()
             return feedparser.parse(content)
     except Exception as e:
@@ -137,9 +148,9 @@ async def fetch_and_process_news(db: AsyncSession):
             score, reason, symbol = result
             title, link, summary, published_at = entries_to_process[i]
             
-            # Skip general news based on our strict AI prompt
+            # Keep all news, even if general market news.
             if symbol == "NONE" or symbol == "UNKNOWN":
-                continue
+                symbol = "MARKET"
             
             article_data = schemas.NewsArticleCreate(
                 title=title,

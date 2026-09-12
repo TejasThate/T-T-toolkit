@@ -56,6 +56,9 @@ async def analyze_impact(title: str, summary: str):
     """
     
     models_to_try = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "qwen/qwen3.8-27b",
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
         "llama3-8b-8192",

@@ -41,6 +41,11 @@ def read_root():
 def ping():
     return {"status": "ok"}
 
+@app.get("/models")
+async def list_models():
+    models = await news_service.client.models.list()
+    return {"models": [m.id for m in models.data]}
+
 @app.post("/auth/register", response_model=schemas.Token)
 async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     try:

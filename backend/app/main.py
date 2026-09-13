@@ -212,8 +212,7 @@ async def trigger_news_fetch(
 
 @app.get("/news", response_model=List[schemas.NewsArticle])
 async def get_news(
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
         select(models.NewsArticle)

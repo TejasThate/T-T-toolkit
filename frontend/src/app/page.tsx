@@ -24,10 +24,14 @@ export default function Page() {
 
   const fetchNews = async () => {
     try {
-      const res = await fetch(`${API_BASE}/news`);
+      const token = localStorage.getItem("token") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/news`, { headers });
       if (res.ok) {
         const data = await res.json();
-        setNews(data.news || []);
+        setNews(data || []);
       }
     } catch (e) {
       console.error(e);
@@ -37,7 +41,11 @@ export default function Page() {
   const fetchMarketData = async () => {
     try {
       setMarketLoading(true);
-      const res = await fetch(`${API_BASE}/market/live`);
+      const token = localStorage.getItem("token") || "";
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/market/live`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMarketData(data.data || {});
@@ -79,15 +87,15 @@ export default function Page() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await fetch(`${API_BASE}/ai/chat`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ query: userMessage, context: "general" }),
+        body: JSON.stringify({ query: userMessage }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
+        setChatHistory(prev => [...prev, { role: "assistant", content: data.reply || "No response received." }]);
       } else {
         setChatHistory(prev => [...prev, { role: "assistant", content: "Error communicating with AI backend." }]);
       }

@@ -82,9 +82,9 @@ export default function Page() {
     setIsChatLoading(true);
 
     try {
-      const token = localStorage.getItem("token") || "";
+      const token = localStorage.getItem("token") || "dummy_token";
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      headers["Authorization"] = `Bearer ${token}`;
 
       const res = await fetch(`${API_BASE}/ai/chat`, {
         method: "POST",

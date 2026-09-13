@@ -401,7 +401,7 @@ export default function Dashboard() {
                       disabled={uploading} 
                       className="hidden"
                     />
-                    <Button variant="outline" className="w-full rounded-xl h-12 border-white/20 hover:bg-white/10 text-white" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                    <Button className="w-full rounded-xl h-12 border border-white/20 bg-transparent hover:bg-white/10 text-white shadow-none" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                       {uploading ? "Uploading..." : "Upload CSV Manually"}
                     </Button>
                     <div className="relative flex items-center py-2">

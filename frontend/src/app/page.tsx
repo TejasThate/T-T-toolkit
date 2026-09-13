@@ -22,6 +22,33 @@ export default function Page() {
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const fetchNews = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/news`);
+      if (res.ok) {
+        const data = await res.json();
+        setNews(data.news || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const fetchMarketData = async () => {
+    try {
+      setMarketLoading(true);
+      const res = await fetch(`${API_BASE}/market/live`);
+      if (res.ok) {
+        const data = await res.json();
+        setMarketData(data.data || {});
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarketLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (started) {
       fetchNews();
@@ -36,33 +63,6 @@ export default function Page() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isChatLoading]);
-
-  async function fetchNews() {
-    try {
-      const res = await fetch(`${API_BASE}/news`);
-      if (res.ok) {
-        const data = await res.json();
-        setNews(data.news || []);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  async function fetchMarketData() {
-    try {
-      setMarketLoading(true);
-      const res = await fetch(`${API_BASE}/market/live`);
-      if (res.ok) {
-        const data = await res.json();
-        setMarketData(data.data || {});
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setMarketLoading(false);
-    }
-  };
 
   const handleChatSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();

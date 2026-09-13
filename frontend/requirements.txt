@@ -17,3 +17,12 @@ google-auth-oauthlib
 google-api-python-client
 requests
 slowapi
+cryptography
+redis
+sentry-sdk
+
+pytest
+pytest-asyncio
+httpx
+
+bcrypt==4.0.1

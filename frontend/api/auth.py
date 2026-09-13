@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
 from typing import Optional
+from cryptography.fernet import Fernet
 import jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -16,6 +17,25 @@ from google_auth_oauthlib.flow import Flow
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-jwt-keep-it-secret")
+
+# Fernet encryption key for Google tokens (must be 32 url-safe base64-encoded bytes)
+# Fallback for dev only. In prod, provide ENCRYPTION_KEY env var!
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", Fernet.generate_key().decode("utf-8"))
+fernet = Fernet(ENCRYPTION_KEY.encode("utf-8"))
+
+def encrypt_token(token: str) -> str:
+    if not token:
+        return token
+    return fernet.encrypt(token.encode("utf-8")).decode("utf-8")
+
+def decrypt_token(encrypted_token: str) -> str:
+    if not encrypted_token:
+        return encrypted_token
+    try:
+        return fernet.decrypt(encrypted_token.encode("utf-8")).decode("utf-8")
+    except Exception as e:
+        print(f"Failed to decrypt token: {e}")
+        return encrypted_token
 
 def verify_google_token(token: str):
     try:

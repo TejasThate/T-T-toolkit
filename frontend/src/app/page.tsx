@@ -280,38 +280,47 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {news.slice(0, 6).map((n: any) => (
+              {news.slice(0, 6).map((n: any) => {
+                const isPositive = n.impact_score > 5;
+                const isNeutral = n.impact_score > 4 && n.impact_score < 6;
+                const pseudoChange = ((n.impact_score - 5) * 1.5).toFixed(2);
+                const symbol = n.affected_symbol !== 'NONE' && n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'MARKET';
+                
+                return (
                 <a 
                   key={n.id} 
                   href={n.link} 
                   target="_blank" 
                   rel="noreferrer" 
-                  className="group flex flex-col justify-between p-5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-3xl transition-all shadow-lg hover:shadow-indigo-500/10"
+                  className="group flex flex-col p-5 bg-[#18181b] hover:bg-[#27272a] border border-white/10 rounded-2xl transition-all shadow-md"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <p className="text-[15px] font-medium text-slate-200 group-hover:text-indigo-300 leading-snug mb-2 transition-colors">
-                        {n.title}
-                      </p>
-                      <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
-                        {n.impact_reason}
-                      </p>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col gap-2">
+                       <div className="w-10 h-10 rounded-lg bg-black border border-white/10 flex items-center justify-center font-bold text-white text-lg overflow-hidden">
+                          {symbol === 'MARKET' ? (
+                            <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                          ) : (
+                            <span className="bg-gradient-to-br from-indigo-400 to-cyan-400 text-transparent bg-clip-text">{symbol.substring(0, 2)}</span>
+                          )}
+                       </div>
+                       <span className="font-semibold text-slate-200 mt-1">{symbol === 'MARKET' ? 'General Market' : symbol}</span>
                     </div>
-                    <span className="text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all mt-1 shrink-0">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <span className={`text-sm font-medium ${isPositive ? 'text-emerald-400' : isNeutral ? 'text-slate-400' : 'text-rose-400'}`}>
+                       {isPositive ? '+' : ''}{pseudoChange}%
                     </span>
                   </div>
                   
-                  <div className="flex items-center gap-3 mt-4 pt-4 border-t border-white/5">
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${n.impact_score > 6 ? 'bg-emerald-500/20 text-emerald-400' : n.impact_score < 4 ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-500/20 text-slate-300'}`}>
-                      Impact: {n.impact_score} / 10
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'General Market'}</span>
+                  <div className="pl-3 py-1 border-l-2 border-white/10 text-slate-300 text-sm leading-relaxed mb-4 flex-grow">
+                     <p className="line-clamp-3 text-slate-300 group-hover:text-slate-200 transition-colors">
+                        <span className="font-medium text-slate-200">{n.title}</span> — {n.impact_reason || n.summary}
+                     </p>
+                  </div>
+                  
+                  <div className="mt-auto text-xs text-slate-500">
+                     {new Date(n.published_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </div>
                 </a>
-              ))}
+              )})}
             </div>
           )}
         </div>

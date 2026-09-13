@@ -42,9 +42,9 @@ async def analyze_impact(title: str, summary: str):
     Summary: {summary}
     
     IMPORTANT INSTRUCTION:
-    We want news that is about specific companies, investments, or catalysts.
-    Even if it mentions a sector broadly, try to extract the main company mentioned.
-    If the news is purely general market news with NO specific company, return "affected_symbol": "NONE".
+    We want news that is about specific Indian companies, investments, or catalysts in the Indian stock market.
+    Even if it mentions a sector broadly, try to extract the main Indian company mentioned.
+    If the news is purely general market news with NO specific company, OR if it is about non-Indian/international companies (e.g. Oracle, Tesla, US markets), you MUST return "affected_symbol": "NONE".
     
     Provide your output strictly in the following JSON format:
     {{

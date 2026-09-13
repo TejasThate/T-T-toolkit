@@ -55,40 +55,41 @@ async def analyze_impact(title: str, summary: str):
     Do not include any markdown formatting or extra text, just the raw JSON object.
     """
     
-    models_to_try = [
-        "openai/gpt-oss-120b",
-        "openai/gpt-oss-20b",
-        "qwen/qwen3.8-27b",
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "llama3-8b-8192",
-        "llama3-70b-8192",
-        "gemma2-9b-it",
-        "llama-3.2-1b-preview",
-        "llama-3.2-3b-preview",
-        "llama-3.2-11b-vision-preview",
-        "llama-3.2-90b-vision-preview",
-        "mixtral-8x7b-32768"
-    ]
-    
-    last_err = None
-    for m in models_to_try:
-        try:
-            response = await client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model=m,
-                temperature=0,
-                response_format={"type": "json_object"}
-            )
-            break
-        except Exception as e:
-            if "decommissioned" in str(e).lower() or "not exist" in str(e).lower() or "access" in str(e).lower():
-                last_err = e
-                continue
-            raise e
-    else:
-        raise last_err
+    try:
+        models_to_try = [
+            "openai/gpt-oss-120b",
+            "openai/gpt-oss-20b",
+            "qwen/qwen3.8-27b",
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "llama3-8b-8192",
+            "llama3-70b-8192",
+            "gemma2-9b-it",
+            "llama-3.2-1b-preview",
+            "llama-3.2-3b-preview",
+            "llama-3.2-11b-vision-preview",
+            "llama-3.2-90b-vision-preview",
+            "mixtral-8x7b-32768"
+        ]
         
+        last_err = None
+        for m in models_to_try:
+            try:
+                response = await client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=m,
+                    temperature=0,
+                    response_format={"type": "json_object"}
+                )
+                break
+            except Exception as e:
+                if "decommissioned" in str(e).lower() or "not exist" in str(e).lower() or "access" in str(e).lower():
+                    last_err = e
+                    continue
+                raise e
+        else:
+            raise last_err
+            
         # Parse JSON and strip markdown if present
         result_text = response.choices[0].message.content.strip()
         if result_text.startswith("```json"):

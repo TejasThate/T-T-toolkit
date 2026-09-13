@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { motion } from 'framer-motion';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const GOOGLE_CLIENT_ID = "251614952431-j137o7u8qeu3b7n93846bi4e1h5auop3.apps.googleusercontent.com";
 
@@ -232,9 +234,13 @@ export default function Dashboard() {
                   ) : (
                     chatHistory.map((msg, idx) => (
                       <div key={idx} className={`mb-4 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                        <span className={`inline-block p-3 rounded-2xl shadow-md ${msg.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-sm' : 'bg-white/10 text-slate-100 border border-white/10 rounded-bl-sm'}`}>
-                          {msg.content}
-                        </span>
+                        <div className={`inline-block p-4 rounded-2xl shadow-md ${msg.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-sm' : 'bg-white/10 text-slate-100 border border-white/10 rounded-bl-sm prose prose-invert prose-sm max-w-none'}`}>
+                          {msg.role === 'user' ? (
+                            msg.content
+                          ) : (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}

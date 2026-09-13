@@ -16,8 +16,8 @@ export default function Page() {
   const [chatQuery, setChatQuery] = useState("");
   const [chatHistory, setChatHistory] = useState<{role: 'user'|'assistant', content: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [news, setNews] = useState<any[]>([]);
-  const [marketData, setMarketData] = useState<any>({});
+  const [news, setNews] = useState<Record<string, any>[]>([]);
+  const [marketData, setMarketData] = useState<Record<string, any>>({});
   const [marketLoading, setMarketLoading] = useState(true);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -37,7 +37,7 @@ export default function Page() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isChatLoading]);
 
-  const fetchNews = async () => {
+  async function fetchNews() {
     try {
       const res = await fetch(`${API_BASE}/news`);
       if (res.ok) {
@@ -49,7 +49,7 @@ export default function Page() {
     }
   };
 
-  const fetchMarketData = async () => {
+  async function fetchMarketData() {
     try {
       setMarketLoading(true);
       const res = await fetch(`${API_BASE}/market/live`);
@@ -303,7 +303,7 @@ export default function Page() {
             
             <div className="space-y-3">
               {Object.values(marketData).length > 0 ? (
-                Object.values(marketData).map((item: any) => {
+                Object.values(marketData).map((item: Record<string, any>) => {
                   const isUp = item.change >= 0;
                   return (
                     <div key={item.symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
@@ -334,7 +334,7 @@ export default function Page() {
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Trending Impact</h3>
             </div>
             <div className="space-y-3">
-              {news.slice(0, 3).map((n: any) => {
+              {news.slice(0, 3).map((n: Record<string, any>) => {
                 const isPositive = n.impact_score > 5;
                 const isNeutral = n.impact_score > 4 && n.impact_score < 6;
                 const symbol = n.affected_symbol !== 'NONE' && n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'MKT';

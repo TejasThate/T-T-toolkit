@@ -5,11 +5,13 @@ export default function AmbientBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
 
-  // Check prefers-reduced-motion on mount
+  // Check prefers-reduced-motion on mount safely
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (mediaQuery.matches) {
-      setIsPlaying(false);
+    if (typeof window !== 'undefined') {
+      const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      if (mediaQuery.matches) {
+        setIsPlaying(false);
+      }
     }
   }, []);
 

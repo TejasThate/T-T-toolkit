@@ -11,7 +11,7 @@ import remarkGfm from "remark-gfm";
 import AmbientBackground from "@/components/AmbientBackground";
 import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
-const API_BASE = "https://tt-toolkit-backend.onrender.com"; // Adjust if testing locally
+const API_BASE = "/api";
 
 export default function Page() {
   const [started, setStarted] = useState(false);

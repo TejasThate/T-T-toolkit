@@ -9,7 +9,7 @@ import io
 from fastapi import UploadFile, File
 
 from .database import engine, Base, get_db
-from . import models, schemas, crud, auth, news_service
+from . import models, schemas, crud, auth, news_service, market_service
 from .gmail_service import sync_demat_from_gmail
 
 app = FastAPI(title="T&T API", version="0.1.0")
@@ -45,6 +45,11 @@ def ping():
 async def list_models():
     models = await news_service.client.models.list()
     return {"models": [m.id for m in models.data]}
+
+@app.get("/market/live")
+async def market_live():
+    data = await market_service.get_live_market_data()
+    return {"data": data}
 
 @app.post("/auth/register", response_model=schemas.Token)
 async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):

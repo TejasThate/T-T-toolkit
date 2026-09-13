@@ -1,171 +1,94 @@
-"use client";
-
-import { useEffect, useState, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+'use client';
+import { useState, useEffect, useRef, FormEvent } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
-import { motion } from 'framer-motion';
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import AmbientBackground from "@/components/AmbientBackground";
+import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
-const GOOGLE_CLIENT_ID = "251614952431-j137o7u8qeu3b7n93846bi4e1h5auop3.apps.googleusercontent.com";
+const API_BASE = "https://tt-toolkit-backend.onrender.com"; // Adjust if testing locally
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
-
-export default function Dashboard() {
-  const [token, setToken] = useState<string | null>("dummy-token");
+export default function Page() {
   const [started, setStarted] = useState(false);
-
-  const [holdings, setHoldings] = useState([]);
-  const [news, setNews] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [fetchingNews, setFetchingNews] = useState(false);
-  
-  // Chat state
   const [chatQuery, setChatQuery] = useState("");
-  const [chatHistory, setChatHistory] = useState<{role: string, content: string}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user'|'assistant', content: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [news, setNews] = useState<any[]>([]);
+  const [marketData, setMarketData] = useState<any>({});
+  const [marketLoading, setMarketLoading] = useState(true);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://t-t-toolkit.onrender.com";
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (savedToken) {
-      setToken(savedToken);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (token) {
-      fetchPortfolio();
+    if (started) {
       fetchNews();
+      fetchMarketData();
+      
+      // Auto-refresh market data every 60 seconds
+      const interval = setInterval(fetchMarketData, 60000);
+      return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [started]);
 
-
-  const handleLogout = () => {
-    setToken(null);
-    localStorage.removeItem("token");
-    setHoldings([]);
-    setNews([]);
-  };
-
-  const getHeaders = () => {
-    return {
-      "Authorization": `Bearer ${token}`
-    };
-  };
-
-  const fetchPortfolio = async () => {
-    try {
-      const res = await fetch(`${API_URL}/portfolio`, { headers: getHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setHoldings(data);
-      } else if (res.status === 401) {
-        handleLogout();
-      }
-    } catch (err) {
-      console.error("Failed to fetch portfolio:", err);
-    }
-  };
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory, isChatLoading]);
 
   const fetchNews = async () => {
     try {
-      const res = await fetch(`${API_URL}/news`, { headers: getHeaders() });
+      const res = await fetch(`${API_BASE}/news`);
       if (res.ok) {
         const data = await res.json();
-        setNews(data);
-      } else {
-        const err = await res.json();
-        console.error("News fetch error:", err);
+        setNews(data.news || []);
       }
-    } catch (err) {
-      console.error("Failed to fetch news:", err);
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
+  const fetchMarketData = async () => {
     try {
-      const res = await fetch(`${API_URL}/portfolio/upload`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: formData,
-      });
-      if (res.ok) {
-        alert("Portfolio updated successfully!");
-        fetchPortfolio();
-      } else {
-        const errData = await res.json();
-        alert(`Failed to upload portfolio: ${errData.detail || 'Unknown Error'}`);
-      }
-    } catch (err) {
-      console.error("Error uploading file:", err);
-      alert(`Network error uploading file.`);
-    }
-    setUploading(false);
-  };
-
-  const handleFetchNews = async () => {
-    setFetchingNews(true);
-    try {
-      const res = await fetch(`${API_URL}/news/fetch`, { 
-        method: "POST",
-        headers: getHeaders()
-      });
+      setMarketLoading(true);
+      const res = await fetch(`${API_BASE}/market/live`);
       if (res.ok) {
         const data = await res.json();
-        alert(data.message);
-        await fetchNews();
-      } else {
-        const errData = await res.json();
-        alert(`Failed to fetch news: ${errData.detail || 'Server error'}`);
+        setMarketData(data.data || {});
       }
-    } catch (err) {
-      console.error("Failed to fetch latest news:", err);
-      alert(`Network error fetching news.`);
+    } catch (e) {
+      console.error(e);
     } finally {
-      setFetchingNews(false);
+      setMarketLoading(false);
     }
   };
 
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleChatSubmit = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
     if (!chatQuery.trim()) return;
 
-    const userMessage = { role: "user", content: chatQuery };
-    setChatHistory(prev => [...prev, userMessage]);
+    const userMessage = chatQuery.trim();
     setChatQuery("");
+    setChatHistory(prev => [...prev, { role: "user", content: userMessage }]);
     setIsChatLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/ai/chat`, {
+      const token = localStorage.getItem("token") || "";
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
-        headers: {
-          ...getHeaders(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ query: userMessage.content })
+        headers,
+        body: JSON.stringify({ query: userMessage, context: "general" }),
       });
-      
+
       if (res.ok) {
         const data = await res.json();
-        setChatHistory(prev => [...prev, { role: "assistant", content: data.reply }]);
+        setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
       } else {
-        setChatHistory(prev => [...prev, { role: "assistant", content: "Sorry, I couldn't reach the server." }]);
+        setChatHistory(prev => [...prev, { role: "assistant", content: "Error communicating with AI backend." }]);
       }
     } catch (err) {
       console.error("Chat error", err);
@@ -175,24 +98,44 @@ export default function Dashboard() {
     }
   };
 
-  const handleGmailSync = async () => {
-    alert("Gmail Sync is currently disabled because Google Login was removed from the app.");
+  const sendQuickAction = (action: string) => {
+    setChatQuery(action);
+    // Note: React state is async, so we use a small timeout to submit the form after setting query
+    setTimeout(() => {
+      const form = document.getElementById('chat-form') as HTMLFormElement;
+      if (form) form.requestSubmit();
+    }, 50);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    window.location.reload();
+  };
 
   if (!started) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0f172a] flex flex-col justify-center items-center text-slate-100 p-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md text-center space-y-8">
+      <div className="min-h-screen bg-[#0B0E14] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
+        <AmbientBackground />
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="z-10 max-w-md text-center space-y-8">
+          <div className="flex justify-center mb-4">
+            {/* Custom SVG Logo */}
+            <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
+              <rect x="20" y="25" width="15" height="40" rx="4" fill="#6C5CE7" />
+              <rect x="55" y="35" width="35" height="15" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+              <rect x="65" y="50" width="15" height="40" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+              <circle cx="50" cy="50" r="40" stroke="white" strokeOpacity="0.1" strokeWidth="2" />
+            </svg>
+          </div>
           <h1 className="text-5xl font-bold tracking-tight">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T Toolkit</span>
+            <span className="text-white">T&T Toolkit</span>
           </h1>
-          <p className="text-slate-400 text-lg">Adaptive Portfolio Intelligence</p>
+          <p className="text-slate-400 text-lg">Adaptive Trading Intelligence</p>
           <Button 
             onClick={() => setStarted(true)}
-            className="w-full h-14 rounded-2xl bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-lg shadow-[0_0_40px_rgba(6,182,212,0.4)] transition-all hover:scale-105"
+            className="w-full h-14 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white font-bold text-lg shadow-[0_0_20px_rgba(108,92,231,0.3)] transition-all"
           >
-            Get Started
+            Launch Terminal
           </Button>
         </motion.div>
       </div>
@@ -200,245 +143,244 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#111113] text-slate-200 selection:bg-cyan-500/30 font-inter">
-      {/* Header / Navbar */}
-      <header className="bg-white/5 backdrop-blur-md border-b border-white/10 px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-lg">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tighter">
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-400">T&T Toolkit</span>
-          </h1>
+    <div className="flex h-screen bg-[#0B0E14] text-slate-200 overflow-hidden font-sans relative">
+      <AmbientBackground />
+      
+      {/* LEFT SIDEBAR (Nav) */}
+      <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0B0E14]/80 backdrop-blur-xl flex flex-col z-10 hidden md:flex">
+        <div className="p-6 flex items-center gap-3 border-b border-white/5">
+          <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
+            <rect x="20" y="25" width="15" height="40" rx="4" fill="#6C5CE7" />
+            <rect x="55" y="35" width="35" height="15" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+            <rect x="65" y="50" width="15" height="40" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+          </svg>
+          <span className="font-bold text-lg tracking-tight">T&T Toolkit</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-cyan-200/60 hidden md:inline-block">Adaptive Portfolio Intelligence</span>
-          <Button className="rounded-full border border-white/20 bg-transparent hover:bg-white/10 text-white shadow-none" onClick={handleLogout}>Logout</Button>
-        </div>
-      </header>
-
-      <main className="container mx-auto py-12 px-4 max-w-6xl space-y-16">
         
-        {/* HERO SECTION: AI Assistant */}
-        <div className="flex flex-col items-center text-center space-y-6 mt-4">
-          <h2 className="text-3xl md:text-4xl font-light text-slate-300">Ask anything about</h2>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-orange-400 via-rose-400 to-pink-500 pb-2">
-            Markets, Stocks & Your Portfolio
-          </h1>
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-2">Menu</div>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[#6C5CE7]/10 text-[#6C5CE7] font-medium transition-colors">
+            <LayoutDashboard size={18} /> Dashboard
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors">
+            <MessageSquare size={18} /> Terminal AI
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors">
+            <Briefcase size={18} /> Portfolio
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors">
+            <TrendingUp size={18} /> Market Trends
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors">
+            <Filter size={18} /> Screener
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors">
+            <Newspaper size={18} /> Top News
+          </button>
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-colors relative">
+            <Bell size={18} /> Alerts
+            <span className="absolute right-2 w-2 h-2 rounded-full bg-[#EF4444]"></span>
+          </button>
           
-          <div className="w-full max-w-3xl mt-8">
-            <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-2xl rounded-3xl overflow-hidden">
-              <div className="flex flex-col">
-                <div className="bg-black/20 p-6 min-h-[120px] max-h-[300px] overflow-y-auto whitespace-pre-wrap text-left custom-scrollbar">
-                  {chatHistory.length === 0 ? (
-                    <div className="flex items-center text-cyan-200/60 italic h-full justify-center opacity-70">
-                      <span>✨ Give me today's market summary or ask about your holdings...</span>
-                    </div>
-                  ) : (
-                    chatHistory.map((msg, idx) => (
-                      <div key={idx} className={`mb-4 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                        <div className={`inline-block p-4 rounded-2xl shadow-md ${msg.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-sm' : 'bg-white/10 text-slate-100 border border-white/10 rounded-bl-sm prose prose-invert prose-sm max-w-none'}`}>
-                          {msg.role === 'user' ? (
-                            msg.content
-                          ) : (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {isChatLoading && <p className="text-cyan-200/60 italic mt-2 animate-pulse text-left">AI is thinking...</p>}
-                </div>
-                <div className="p-4 bg-white/5 border-t border-white/10">
-                  <form onSubmit={handleChatSubmit} className="flex gap-3">
-                    <Input 
-                      value={chatQuery}
-                      onChange={e => setChatQuery(e.target.value)}
-                      placeholder="Ask T&T Assistant..."
-                      disabled={isChatLoading}
-                      className="rounded-full bg-black/20 border-white/10 h-14 px-6 text-white placeholder:text-white/40 focus-visible:ring-indigo-500 text-lg shadow-inner"
-                    />
-                    <Button type="submit" className="rounded-full h-14 px-8 bg-indigo-600 hover:bg-indigo-500 text-white font-medium border-0 shadow-lg transition-transform active:scale-95" disabled={isChatLoading || !chatQuery.trim()}>
-                      <span className="mr-2">✦</span> Ask
-                    </Button>
-                  </form>
-                </div>
+          <div className="mt-8">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-2">Recent Chats</div>
+            <button className="w-full text-left text-sm text-slate-400 hover:text-slate-200 truncate px-3 py-1.5 transition-colors">
+              Portfolio review - Sept
+            </button>
+            <button className="w-full text-left text-sm text-slate-400 hover:text-slate-200 truncate px-3 py-1.5 transition-colors">
+              HDFC Bank earnings...
+            </button>
+          </div>
+        </nav>
+        
+        <div className="p-4 border-t border-white/5">
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={handleLogout}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs">
+                PRO
               </div>
-            </Card>
+              <div>
+                <p className="text-sm font-medium">T&T Account</p>
+                <p className="text-xs text-slate-500">Pro Plan Active</p>
+              </div>
+            </div>
+            <LogOut size={16} className="text-slate-500" />
           </div>
         </div>
+      </aside>
 
-        {/* NEWS SECTION: 2x2 Grid Pills */}
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <p className="text-sm font-medium text-slate-400 flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-              What is impacting the market today...
-            </p>
-            <Button variant="ghost" className="text-xs text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-full h-8 px-4" onClick={handleFetchNews} disabled={fetchingNews}>
-              {fetchingNews ? "Fetching..." : "Refresh News"}
-            </Button>
-          </div>
-          
-          {news.length === 0 ? (
-            <div className="text-center p-8 border border-white/5 rounded-3xl bg-white/5">
-              <p className="text-slate-400 mb-4">No news fetched yet.</p>
-              <Button onClick={handleFetchNews} className="rounded-full bg-white/10 hover:bg-white/20 text-white">Fetch Latest News</Button>
+      {/* CENTER CONTENT (Main AI Chat) */}
+      <main className="flex-1 flex flex-col z-10 bg-[#0B0E14]/40 backdrop-blur-sm min-w-0">
+        <header className="h-[73px] flex-shrink-0 flex items-center px-6 border-b border-white/5 backdrop-blur-md bg-[#0B0E14]/80">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            Terminal Intelligence <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#22C55E]/20 text-[#22C55E] uppercase tracking-wider ml-2">Live</span>
+          </h2>
+        </header>
+        
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col">
+          {chatHistory.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-80">
+              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 shadow-xl">
+                <Activity className="text-[#6C5CE7]" size={32} />
+              </div>
+              <h2 className="text-2xl font-semibold mb-2">How can I help you analyze the market?</h2>
+              <p className="text-slate-400 max-w-md">Ask about your portfolio, technical indicators, breaking news, or scan the market for opportunities.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {news.slice(0, 6).map((n: any) => {
-                const isPositive = n.impact_score > 5;
-                const isNeutral = n.impact_score > 4 && n.impact_score < 6;
-                const pseudoChange = ((n.impact_score - 5) * 1.5).toFixed(2);
-                const symbol = n.affected_symbol !== 'NONE' && n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'MARKET';
-                
-                return (
-                <a 
-                  key={n.id} 
-                  href={n.link} 
-                  target="_blank" 
-                  rel="noreferrer" 
-                  className="group flex flex-col p-5 bg-[#18181b] hover:bg-[#27272a] border border-white/10 rounded-2xl transition-all shadow-md"
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex flex-col gap-2">
-                       <div className="w-10 h-10 rounded-lg bg-black border border-white/10 flex items-center justify-center font-bold text-white text-lg overflow-hidden">
-                          {symbol === 'MARKET' ? (
-                            <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                          ) : (
-                            <span className="bg-gradient-to-br from-indigo-400 to-cyan-400 text-transparent bg-clip-text">{symbol.substring(0, 2)}</span>
-                          )}
-                       </div>
-                       <span className="font-semibold text-slate-200 mt-1">{symbol === 'MARKET' ? 'General Market' : symbol}</span>
-                    </div>
-                    <span className={`text-sm font-medium ${isPositive ? 'text-emerald-400' : isNeutral ? 'text-slate-400' : 'text-rose-400'}`}>
-                       {isPositive ? '+' : ''}{pseudoChange}%
-                    </span>
+            <div className="space-y-6">
+              {chatHistory.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${
+                    msg.role === 'user' 
+                      ? 'bg-[#6C5CE7] text-white rounded-br-sm shadow-md' 
+                      : 'bg-[#141824] border border-white/10 text-slate-200 rounded-bl-sm shadow-sm prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-black/40 font-inter'
+                  }`}>
+                    {msg.role === 'user' ? (
+                      msg.content
+                    ) : (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    )}
                   </div>
-                  
-                  <div className="pl-3 py-1 border-l-2 border-white/10 text-slate-300 text-sm leading-relaxed mb-4 flex-grow">
-                     <p className="line-clamp-3 text-slate-300 group-hover:text-slate-200 transition-colors">
-                        <span className="font-medium text-slate-200">{n.title}</span> — {n.impact_reason || n.summary}
-                     </p>
+                </div>
+              ))}
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-[#141824] border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4 text-slate-400 flex items-center gap-3">
+                    <Loader2 className="animate-spin w-4 h-4 text-[#6C5CE7]" />
+                    <span className="text-sm">Analyzing market data...</span>
                   </div>
-                  
-                  <div className="mt-auto text-xs text-slate-500">
-                     {new Date(n.published_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                  </div>
-                </a>
-              )})}
+                </div>
+              )}
+              <div ref={chatEndRef} />
             </div>
           )}
         </div>
+        
+        <div className="p-6 pt-2 bg-gradient-to-t from-[#0B0E14] to-transparent">
+          {/* Quick Actions */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {["Analyze my portfolio", "Today's top gainers", "IPO GMP today", "What's moving the market"].map(action => (
+              <button 
+                key={action}
+                onClick={() => sendQuickAction(action)}
+                className="text-xs font-medium bg-[#141824] hover:bg-white/10 border border-white/10 text-slate-300 rounded-full px-4 py-2 transition-colors whitespace-nowrap"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+          
+          <form id="chat-form" onSubmit={handleChatSubmit} className="relative flex items-center">
+            <Input 
+              value={chatQuery}
+              onChange={e => setChatQuery(e.target.value)}
+              placeholder="Ask the Terminal..."
+              disabled={isChatLoading}
+              className="w-full bg-[#141824] border border-white/10 h-14 pl-6 pr-16 rounded-2xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-inner text-base"
+            />
+            <button 
+              type="submit" 
+              disabled={isChatLoading || !chatQuery.trim()}
+              className="absolute right-2 w-10 h-10 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
+            >
+              <ArrowUpRight size={20} />
+            </button>
+          </form>
+        </div>
+      </main>
 
-        {/* BOTTOM SECTION: Holdings & Sync */}
-        <div className="max-w-6xl mx-auto pt-8 border-t border-white/10">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <div className="xl:col-span-2">
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl h-full">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">Your Holdings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {holdings.length === 0 ? (
-                    <p className="text-sm text-cyan-200/60">No holdings found. Upload a CSV to get started.</p>
-                  ) : (
-                    <div className="flex flex-col gap-8">
-                      <div className="overflow-x-auto custom-scrollbar pb-2">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-cyan-200/60">Symbol</TableHead>
-                              <TableHead className="text-cyan-200/60">Company</TableHead>
-                              <TableHead className="text-right text-cyan-200/60">Quantity</TableHead>
-                              <TableHead className="text-right text-cyan-200/60">Avg Price</TableHead>
-                              <TableHead className="text-right text-cyan-200/60">Live Price</TableHead>
-                              <TableHead className="text-right text-cyan-200/60">Total</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {holdings.map((h: any) => (
-                              <TableRow key={h.id} className="border-white/10 hover:bg-white/5">
-                                <TableCell className="font-medium text-cyan-100">{h.symbol}</TableCell>
-                                <TableCell className="text-slate-300 whitespace-nowrap max-w-[150px] truncate" title={h.company_name}>{h.company_name}</TableCell>
-                                <TableCell className="text-right text-slate-300">{h.quantity}</TableCell>
-                                <TableCell className="text-right text-slate-300">₹{h.average_price?.toFixed(2) || 0}</TableCell>
-                                <TableCell className={`text-right ${h.current_price > h.average_price ? 'text-emerald-400' : h.current_price < h.average_price ? 'text-rose-400' : 'text-slate-300'}`}>
-                                  ₹{h.current_price?.toFixed(2) || "Loading..."}
-                                </TableCell>
-                                <TableCell className="text-right font-semibold text-cyan-100">
-                                  ₹{((h.current_price || h.average_price) * h.quantity).toFixed(2)}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                      <div className="h-[250px] w-full flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={holdings.map((h: any) => ({ name: h.symbol, value: h.quantity * (h.current_price || h.average_price) }))}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={60}
-                              outerRadius={80}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {holdings.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip formatter={(value: any) => `₹${Number(value || 0).toFixed(2)}`} contentStyle={{ backgroundColor: '#1e1b4b', borderColor: '#4338ca', color: '#fff', borderRadius: '8px' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+      {/* RIGHT SIDEBAR (Live Widgets) */}
+      <aside className="w-[320px] flex-shrink-0 border-l border-white/5 bg-[#0B0E14]/80 backdrop-blur-xl flex flex-col z-10 hidden lg:flex">
+        <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-6">
+          
+          {/* Market Overview Widget */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Live Markets</h3>
+              {marketLoading && <Loader2 className="w-3 h-3 animate-spin text-slate-500" />}
             </div>
             
-            <div className="space-y-8">
-              <Card className="bg-white/5 backdrop-blur-md border-white/10 shadow-xl rounded-3xl">
-                <CardHeader>
-                  <CardTitle className="font-semibold text-xl text-cyan-100">Portfolio Sync</CardTitle>
-                  <CardDescription className="text-cyan-200/60">Upload your Groww CSV statement.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col gap-3">
-                    <Input 
-                      type="file" 
-                      accept=".csv" 
-                      ref={fileInputRef}
-                      onChange={handleFileUpload} 
-                      disabled={uploading} 
-                      className="hidden"
-                    />
-                    <Button className="w-full rounded-xl h-12 border border-white/20 bg-transparent hover:bg-white/10 text-white shadow-none" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                      {uploading ? "Uploading..." : "Upload CSV Manually"}
-                    </Button>
-                    <div className="relative flex items-center py-2">
-                      <div className="flex-grow border-t border-white/10"></div>
-                      <span className="flex-shrink-0 mx-4 text-white/30 text-xs uppercase">OR</span>
-                      <div className="flex-grow border-t border-white/10"></div>
+            <div className="space-y-3">
+              {Object.values(marketData).length > 0 ? (
+                Object.values(marketData).map((item: any) => {
+                  const isUp = item.change >= 0;
+                  return (
+                    <div key={item.symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-200">{item.symbol.replace('.NS', '').replace('^', '')}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-mono text-slate-200">{item.price.toFixed(2)}</div>
+                        <div className={`text-xs font-mono font-medium flex items-center justify-end gap-1 ${isUp ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                          {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                          {Math.abs(item.change_percent).toFixed(2)}%
+                        </div>
+                      </div>
                     </div>
-                    <Button 
-                      onClick={handleGmailSync} 
-                      disabled={uploading}
-                      className="w-full rounded-xl h-12 bg-white/5 hover:bg-white/10 text-white border border-white/10"
-                    >
-                      Sync via Gmail (Disabled)
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                  )
+                })
+              ) : (
+                <div className="text-xs text-slate-500 text-center py-4 bg-[#141824] rounded-xl border border-white/5">
+                  Fetching live data...
+                </div>
+              )}
             </div>
-          </div>
+          </section>
+
+          {/* Top News Widget */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Trending Impact</h3>
+            </div>
+            <div className="space-y-3">
+              {news.slice(0, 3).map((n: any) => {
+                const isPositive = n.impact_score > 5;
+                const isNeutral = n.impact_score > 4 && n.impact_score < 6;
+                const symbol = n.affected_symbol !== 'NONE' && n.affected_symbol !== 'MARKET' ? n.affected_symbol : 'MKT';
+                return (
+                  <a key={n.id} href={n.link} target="_blank" rel="noreferrer" className="block bg-[#141824] border border-white/5 rounded-xl p-3 hover:bg-white/5 transition-colors">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-bold bg-white/10 px-1.5 py-0.5 rounded text-slate-300">{symbol}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isPositive ? 'bg-[#22C55E]/10 text-[#22C55E]' : isNeutral ? 'bg-slate-500/10 text-slate-400' : 'bg-[#EF4444]/10 text-[#EF4444]'}`}>
+                        IMPACT: {n.impact_score}/10
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">{n.title}</p>
+                  </a>
+                );
+              })}
+              {news.length === 0 && (
+                <div className="text-xs text-slate-500 text-center py-4 bg-[#141824] rounded-xl border border-white/5">
+                  No news available.
+                </div>
+              )}
+            </div>
+          </section>
+          
+          {/* Portfolio Health Widget */}
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Portfolio Health</h3>
+            </div>
+            <div className="bg-[#141824] border border-white/5 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-[#6C5CE7]/20 flex items-center justify-center">
+                  <Activity className="text-[#6C5CE7]" size={20} />
+                </div>
+                <div>
+                  <div className="text-2xl font-mono font-bold text-slate-200">A+</div>
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">AI Score</div>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Diversification is strong. Consider hedging tech exposure ahead of US Fed rate decisions next week.
+              </p>
+            </div>
+          </section>
+
         </div>
-      
-      </main>
+      </aside>
     </div>
   );
 }

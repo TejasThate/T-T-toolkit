@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,7 @@ import io
 from fastapi import UploadFile, File
 
 from .database import engine, Base, get_db
-from . import models, schemas, crud, auth, news_service, market_service
+from . import models, schemas, crud, auth, news_service, market_service, prediction_service
 from .gmail_service import sync_demat_from_gmail
 
 app = FastAPI(title="T&T API", version="0.1.0")
@@ -50,6 +51,46 @@ async def list_models():
 async def market_live():
     data = await market_service.get_live_market_data()
     return {"data": data}
+
+@app.get("/api/market/predict/{symbol}")
+async def predict_trend(
+    symbol: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    try:
+        res = await prediction_service.get_prediction(symbol, db)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/market/prediction-stats")
+async def get_prediction_stats(db: AsyncSession = Depends(get_db)):
+    try:
+        # Get historical hit rate
+        result = await db.execute(
+            select(models.PredictionLog)
+            .where(models.PredictionLog.actual_outcome.in_(["Correct", "Incorrect"]))
+        )
+        logs = result.scalars().all()
+        total = len(logs)
+        correct = sum(1 for log in logs if log.actual_outcome == "Correct")
+        
+        hit_rate = (correct / total * 100) if total > 0 else 0
+        
+        # We can also quickly call the batch retrain for demonstration (normally a cron job)
+        retrain_msg = await prediction_service.batch_retrain_models(db)
+
+        return {
+            "total_evaluated": total,
+            "correct_predictions": correct,
+            "hit_rate_percentage": round(hit_rate, 2),
+            "retrain_status": retrain_msg["message"]
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/auth/register", response_model=schemas.Token)
 async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
@@ -131,6 +172,7 @@ async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depen
         raise HTTPException(status_code=400, detail=f"Internal Server Error Debug: {str(e)}")
 
 import re
+from pydantic import BaseModel
 
 class PanRequest(BaseModel):
     pan_number: str

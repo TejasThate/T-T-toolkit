@@ -9,6 +9,11 @@ pydantic
 python-multipart
 aiohttp
 yfinance
+statsmodels
+pandas
+scipy
+xgboost
+scikit-learn
 passlib[bcrypt]
 PyJWT
 aiosqlite

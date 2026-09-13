@@ -13,8 +13,10 @@ import { useQuery } from '@tanstack/react-query';
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useMarketDataSync } from "@/hooks/useMarketDataSync";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
+import { PredictionChart } from "@/components/PredictionChart";
+import { PredictionStatsWidget } from "@/components/PredictionStatsWidget";
 
-const API_BASE = "/api";
+const API_BASE = "";
 
 export default function Page() {
   const [started, setStarted] = useState(false);
@@ -488,6 +490,21 @@ export default function Page() {
                 <Lock size={14} className="text-[#6C5CE7]" />
                 Sync via Gmail
               </button>
+            </div>
+          </section>
+          </ErrorBoundary>
+
+          {/* AI Prediction Widget */}
+          <ErrorBoundary>
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <Activity size={14} className="text-[#6C5CE7]" /> AI Engine Forecast
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <PredictionChart symbol="RELIANCE" token={token || ''} />
+              <PredictionStatsWidget />
             </div>
           </section>
           </ErrorBoundary>

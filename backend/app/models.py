@@ -37,3 +37,14 @@ class NewsArticle(Base):
     impact_reason = Column(Text, nullable=True)
     affected_symbol = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+
+class PredictionLog(Base):
+    __tablename__ = "prediction_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    predicted_direction = Column(String)  # Up, Down, Neutral
+    confidence = Column(Float)
+    target_date = Column(DateTime)
+    actual_outcome = Column(String, nullable=True)  # Correct, Incorrect, Pending
+    created_at = Column(DateTime, server_default=func.now())

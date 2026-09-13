@@ -208,7 +208,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-cyan-200/60 hidden md:inline-block">Adaptive Portfolio Intelligence</span>
-          <Button variant="outline" className="rounded-full border-white/20 hover:bg-white/10 text-white" onClick={handleLogout}>Logout</Button>
+          <Button className="rounded-full border border-white/20 bg-transparent hover:bg-white/10 text-white shadow-none" onClick={handleLogout}>Logout</Button>
         </div>
       </header>
 

@@ -32,3 +32,6 @@ env/
 
 # OS
 .DS_Store
+
+# Private Notes
+SESSION_SUMMARY.md

@@ -11,6 +11,8 @@ import remarkGfm from "remark-gfm";
 import AmbientBackground from "@/components/AmbientBackground";
 import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+
 const API_BASE = "/api";
 
 export default function Page() {
@@ -227,6 +229,7 @@ export default function Page() {
           </h2>
         </header>
         
+        <ErrorBoundary>
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col justify-center relative">
           {chatHistory.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto w-full">
@@ -296,6 +299,7 @@ export default function Page() {
             </div>
           )}
         </div>
+        </ErrorBoundary>
         
         {chatHistory.length > 0 && (
           <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0e0f12] via-[#0e0f12]/90 to-transparent flex justify-center">
@@ -324,6 +328,7 @@ export default function Page() {
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-6">
           
           {/* Market Overview Widget */}
+          <ErrorBoundary>
           <section>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Live Markets</h3>
@@ -356,8 +361,10 @@ export default function Page() {
               )}
             </div>
           </section>
+          </ErrorBoundary>
 
           {/* Top News Widget */}
+          <ErrorBoundary>
           <section>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Trending Impact</h3>
@@ -386,8 +393,10 @@ export default function Page() {
               )}
             </div>
           </section>
+          </ErrorBoundary>
           
           {/* Portfolio Health Widget */}
+          <ErrorBoundary>
           <section>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Portfolio Health</h3>
@@ -407,6 +416,7 @@ export default function Page() {
               </p>
             </div>
           </section>
+          </ErrorBoundary>
 
         </div>
       </aside>

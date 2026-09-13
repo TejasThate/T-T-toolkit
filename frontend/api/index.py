@@ -12,12 +12,21 @@ from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service, market_service
 from .gmail_service import sync_demat_from_gmail
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import Request
+
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="T&T API", version="0.1.0", root_path="/api")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=False,
+    allow_origins=["https://t-t-toolkit-tawny.vercel.app", "http://localhost:3000"], 
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -52,7 +61,8 @@ async def market_live():
     return {"data": data}
 
 @app.post("/auth/register", response_model=schemas.Token)
-async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(user: schemas.UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(models.User).where(models.User.email == user.email))
         db_user = result.scalars().first()
@@ -75,7 +85,8 @@ async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=400, detail=f"Registration Error: {str(e)}")
 
 @app.post("/auth/login", response_model=schemas.Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(models.User).where(models.User.email == form_data.username))
         user = result.scalars().first()
@@ -95,7 +106,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
         raise HTTPException(status_code=400, detail=f"Login Error: {str(e)}")
 
 @app.post("/auth/google", response_model=schemas.Token)
-async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def google_login(req: schemas.GoogleLoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     try:
         try:
             from google.oauth2 import id_token
@@ -203,7 +215,9 @@ async def trigger_gmail_sync(
     return result
 
 @app.post("/news/fetch")
+@limiter.limit("5/minute")
 async def trigger_news_fetch(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -211,7 +225,9 @@ async def trigger_news_fetch(
     return {"message": f"Successfully fetched and rated {processed} new articles."}
 
 @app.get("/news", response_model=List[schemas.NewsArticle])
+@limiter.limit("20/minute")
 async def get_news(
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -226,8 +242,10 @@ class ChatRequest(BaseModel):
     query: str
 
 @app.post("/ai/chat")
+@limiter.limit("5/minute")
 async def ai_chat(
     req: ChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):

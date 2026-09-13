@@ -10,68 +10,65 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AmbientBackground from "@/components/AmbientBackground";
 import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
-
+import { useQuery } from '@tanstack/react-query';
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { useMarketDataSync } from "@/hooks/useMarketDataSync";
+import { usePortfolioStore } from "@/store/usePortfolioStore";
 
 const API_BASE = "/api";
 
 export default function Page() {
   const [started, setStarted] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    // Check auth
+    const t = localStorage.getItem("token");
+    setToken(t);
+  }, []);
+
   const [chatQuery, setChatQuery] = useState("");
   const [chatHistory, setChatHistory] = useState<{role: 'user'|'assistant', content: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [news, setNews] = useState<Record<string, any>[]>([]);
-  const [marketData, setMarketData] = useState<Record<string, any>>({});
-  const [marketLoading, setMarketLoading] = useState(true);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const setHoldings = usePortfolioStore(state => state.setHoldings);
+  
+  // Market Data Hook
+  const { data: marketRes, isFetching: marketLoading } = useMarketDataSync();
+  const marketData = marketRes?.data || {};
 
-  const fetchNews = async () => {
-    try {
-      const token = localStorage.getItem("token") || "";
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+  // News Query
+  const { data: news = [] } = useQuery({
+    queryKey: ['news'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/news`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('News fetch failed');
+      return res.json();
+    },
+    enabled: !!token && started
+  });
 
-      const res = await fetch(`${API_BASE}/news`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setNews(data || []);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchMarketData = async () => {
-    try {
-      setMarketLoading(true);
-      const token = localStorage.getItem("token") || "";
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API_BASE}/market/live`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setMarketData(data.data || {});
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setMarketLoading(false);
-    }
-  };
+  // Portfolio Query
+  const { data: portfolioData, isLoading: portfolioLoading } = useQuery({
+    queryKey: ['portfolio'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/portfolio`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Portfolio fetch failed');
+      return res.json();
+    },
+    enabled: !!token && started
+  });
 
   useEffect(() => {
-    if (started) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchNews();
-      fetchMarketData();
-      
-      // Auto-refresh market data every 60 seconds
-      const interval = setInterval(fetchMarketData, 60000);
-      return () => clearInterval(interval);
+    if (portfolioData) {
+      setHoldings(portfolioData);
     }
-  }, [started]);
+  }, [portfolioData, setHoldings]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -337,7 +334,7 @@ export default function Page() {
             
             <div className="space-y-3">
               {Object.values(marketData).length > 0 ? (
-                Object.values(marketData).map((item: Record<string, any>) => {
+                (Object.values(marketData) as any[]).map((item: any) => {
                   const isUp = item.change >= 0;
                   return (
                     <div key={item.symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
@@ -395,25 +392,33 @@ export default function Page() {
           </section>
           </ErrorBoundary>
           
-          {/* Portfolio Health Widget */}
+          {/* Portfolio Overview Widget */}
           <ErrorBoundary>
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Portfolio Health</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">My Portfolio</h3>
+              {portfolioLoading && <Loader2 className="w-3 h-3 animate-spin text-slate-500" />}
             </div>
             <div className="bg-[#141824] border border-white/5 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-[#6C5CE7]/20 flex items-center justify-center">
-                  <Activity className="text-[#6C5CE7]" size={20} />
-                </div>
-                <div>
-                  <div className="text-2xl font-mono font-bold text-slate-200">A+</div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">AI Score</div>
+              <div className="flex flex-col gap-1 mb-4">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider">Total Value</div>
+                <div className="text-2xl font-mono font-bold text-slate-200">
+                  ₹{usePortfolioStore(s => s.totalValue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </div>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Diversification is strong. Consider hedging tech exposure ahead of US Fed rate decisions next week.
-              </p>
+              <div className="flex flex-col gap-1">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider">Overall P&L</div>
+                {(() => {
+                  const pnl = usePortfolioStore(s => s.overallPnl);
+                  const isUp = pnl >= 0;
+                  return (
+                    <div className={`text-sm font-mono font-bold flex items-center gap-1 ${isUp ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
+                      {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                      ₹{Math.abs(pnl).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </section>
           </ErrorBoundary>

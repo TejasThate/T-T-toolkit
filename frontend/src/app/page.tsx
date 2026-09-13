@@ -51,6 +51,7 @@ export default function Page() {
 
   useEffect(() => {
     if (started) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchNews();
       fetchMarketData();
       

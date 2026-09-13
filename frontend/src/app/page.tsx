@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, FormEvent } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AmbientBackground from "@/components/AmbientBackground";
@@ -124,7 +123,7 @@ export default function Page() {
   if (!started) {
     return (
       <div className="min-h-screen bg-[#0e0f12] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="z-10 max-w-md text-center space-y-8">
+        <div className="z-10 max-w-md text-center space-y-8">
           <div className="flex justify-center mb-4">
             {/* Custom SVG Logo */}
             <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -145,7 +144,7 @@ export default function Page() {
           >
             Launch Terminal
           </Button>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -227,68 +226,72 @@ export default function Page() {
         </header>
         
         <ErrorBoundary>
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col justify-center relative">
+        <div className="flex-1 overflow-y-auto p-6 pb-40 custom-scrollbar flex flex-col relative">
           {chatHistory.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto w-full">
-              <h2 className="text-2xl font-medium mb-1 text-slate-300">Ask anything about</h2>
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-orange-400 to-pink-500 bg-clip-text text-transparent mb-10 pb-1">
-                Markets, Stocks & Your Portfolio
+            <div className="flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto w-full mt-10">
+              <div className="mb-8 p-4 rounded-full bg-white/5 border border-white/10">
+                <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
+                  <rect x="20" y="25" width="15" height="40" rx="4" fill="#6C5CE7" />
+                  <rect x="55" y="35" width="35" height="15" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+                  <rect x="65" y="50" width="15" height="40" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
+                </svg>
+              </div>
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-200 mb-10">
+                How can I help you today?
               </h1>
               
-              {/* Quick Actions moved here, inside the empty state */}
-              <div className="flex flex-wrap justify-center gap-3 w-full mb-8">
-                {["Analyze my portfolio", "Today's top gainers", "IPO GMP today", "What's moving the market"].map(action => (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl mb-8">
+                {[
+                  { title: "Analyze my portfolio", icon: <Briefcase size={18} className="text-[#6C5CE7]" />, query: "Analyze my portfolio" },
+                  { title: "Top gainers today", icon: <TrendingUp size={18} className="text-[#22C55E]" />, query: "Today's top gainers" },
+                  { title: "IPO GMP updates", icon: <Newspaper size={18} className="text-orange-400" />, query: "IPO GMP today" },
+                  { title: "Market movers", icon: <Activity size={18} className="text-pink-500" />, query: "What's moving the market" }
+                ].map((action, i) => (
                   <button 
-                    key={action}
-                    onClick={() => sendQuickAction(action)}
-                    className="text-xs md:text-sm font-medium bg-[#141824] hover:bg-white/10 border border-white/10 text-slate-300 rounded-full px-5 py-2.5 transition-colors whitespace-nowrap flex items-center gap-2"
+                    key={i}
+                    onClick={() => sendQuickAction(action.query)}
+                    className="flex flex-col items-start p-4 bg-[#141824] hover:bg-white/10 border border-white/5 hover:border-white/20 rounded-xl transition-all text-left group"
                   >
-                    <Activity size={14} className="text-slate-500" />
-                    {action}
+                    <div className="mb-3 p-2 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors">
+                      {action.icon}
+                    </div>
+                    <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">{action.title}</span>
                   </button>
                 ))}
               </div>
-              
-              <form id="chat-form" onSubmit={handleChatSubmit} className="relative flex items-center w-full max-w-3xl">
-                <Input 
-                  value={chatQuery}
-                  onChange={e => setChatQuery(e.target.value)}
-                  placeholder="Message T&T Assistant..."
-                  disabled={isChatLoading}
-                  className="w-full bg-[#141824] border border-white/5 h-14 pl-6 pr-16 rounded-xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-inner text-base"
-                />
-                <button 
-                  type="submit" 
-                  disabled={isChatLoading || !chatQuery.trim()}
-                  className="absolute right-2 w-10 h-10 rounded-lg bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
-                >
-                  <ArrowUpRight size={20} />
-                </button>
-              </form>
-              <p className="text-[10px] text-slate-500 mt-4 flex items-center gap-1.5"><Activity size={12}/> AI answers are generated for informational purposes only.</p>
             </div>
           ) : (
-            <div className="space-y-6 max-w-4xl mx-auto w-full pb-32 pt-4">
+            <div className="space-y-6 max-w-4xl mx-auto w-full pt-4">
               {chatHistory.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${
                     msg.role === 'user' 
-                      ? 'bg-[#6C5CE7] text-white rounded-br-sm shadow-md' 
-                      : 'bg-[#141824] border border-white/10 text-slate-200 rounded-bl-sm shadow-sm prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-black/40 font-inter'
+                      ? 'bg-[#2a2b32] text-white rounded-br-sm shadow-md' 
+                      : 'bg-transparent text-slate-200 shadow-sm prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-[#141824] prose-pre:border prose-pre:border-white/10 font-inter'
                   }`}>
                     {msg.role === 'user' ? (
                       msg.content
                     ) : (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      <div className="flex gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#6C5CE7] flex items-center justify-center mt-1">
+                          <Activity size={14} className="text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
               ))}
               {isChatLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-[#141824] border border-white/10 rounded-2xl rounded-bl-sm px-5 py-4 text-slate-400 flex items-center gap-3">
-                    <Loader2 className="animate-spin w-4 h-4 text-[#6C5CE7]" />
-                    <span className="text-sm">Analyzing market data...</span>
+                  <div className="bg-transparent px-5 py-4 text-slate-400 flex items-center gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#6C5CE7]/20 flex items-center justify-center border border-[#6C5CE7]/30">
+                      <Loader2 className="animate-spin w-4 h-4 text-[#6C5CE7]" />
+                    </div>
+                    <span className="text-sm">Thinking...</span>
                   </div>
                 </div>
               )}
@@ -298,26 +301,28 @@ export default function Page() {
         </div>
         </ErrorBoundary>
         
-        {chatHistory.length > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0e0f12] via-[#0e0f12]/90 to-transparent flex justify-center">
-            <form id="chat-form-active" onSubmit={handleChatSubmit} className="relative flex items-center w-full max-w-3xl">
+        {/* STICKY BOTTOM INPUT */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0e0f12] via-[#0e0f12] to-transparent flex flex-col items-center justify-end z-20">
+          <div className="w-full max-w-3xl relative">
+            <form id="chat-form-active" onSubmit={handleChatSubmit} className="relative flex items-center w-full bg-[#1e1f25] border border-white/10 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.5)] focus-within:border-white/20 focus-within:ring-1 focus-within:ring-white/10 transition-all">
               <Input 
                 value={chatQuery}
                 onChange={e => setChatQuery(e.target.value)}
-                placeholder="Ask the Terminal..."
+                placeholder="Message T&T Assistant..."
                 disabled={isChatLoading}
-                className="w-full bg-[#141824] border border-white/10 h-14 pl-6 pr-16 rounded-xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-lg text-base"
+                className="w-full bg-transparent border-0 h-16 pl-6 pr-16 rounded-2xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-0 text-base shadow-none"
               />
               <button 
                 type="submit" 
                 disabled={isChatLoading || !chatQuery.trim()}
-                className="absolute right-2 w-10 h-10 rounded-lg bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
+                className="absolute right-3 w-10 h-10 rounded-xl bg-white hover:bg-slate-200 text-black flex items-center justify-center disabled:opacity-30 disabled:hover:bg-white transition-all"
               >
-                <ArrowUpRight size={20} />
+                <ArrowUpRight size={20} strokeWidth={2.5} />
               </button>
             </form>
+            <p className="text-[10.5px] text-slate-500 mt-3 text-center">AI can make mistakes. Consider verifying critical financial information.</p>
           </div>
-        )}
+        </div>
       </main>
 
       {/* RIGHT SIDEBAR (Live Widgets) */}

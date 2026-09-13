@@ -73,13 +73,10 @@ export default function Page() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, isChatLoading]);
 
-  const handleChatSubmit = async (e?: FormEvent) => {
-    if (e) e.preventDefault();
-    if (!chatQuery.trim()) return;
-
-    const userMessage = chatQuery.trim();
-    setChatQuery("");
-    setChatHistory(prev => [...prev, { role: "user", content: userMessage }]);
+  const submitMessage = async (message: string) => {
+    if (!message.trim() || isChatLoading) return;
+    
+    setChatHistory(prev => [...prev, { role: "user", content: message }]);
     setIsChatLoading(true);
 
     try {
@@ -90,30 +87,32 @@ export default function Page() {
       const res = await fetch(`${API_BASE}/ai/chat`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ query: userMessage }),
+        body: JSON.stringify({ query: message }),
       });
 
       if (res.ok) {
         const data = await res.json();
         setChatHistory(prev => [...prev, { role: "assistant", content: data.reply || "No response received." }]);
       } else {
-        setChatHistory(prev => [...prev, { role: "assistant", content: "Error communicating with AI backend." }]);
+        setChatHistory(prev => [...prev, { role: "assistant", content: "Error communicating with AI backend. Please check if the server is running." }]);
       }
     } catch (err) {
       console.error("Chat error", err);
-      setChatHistory(prev => [...prev, { role: "assistant", content: "Sorry, an error occurred." }]);
+      setChatHistory(prev => [...prev, { role: "assistant", content: "Sorry, an error occurred while connecting to the AI backend. It might be offline." }]);
     } finally {
       setIsChatLoading(false);
     }
   };
 
+  const handleChatSubmit = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    const msg = chatQuery;
+    setChatQuery("");
+    await submitMessage(msg);
+  };
+
   const sendQuickAction = (action: string) => {
-    setChatQuery(action);
-    // Note: React state is async, so we use a small timeout to submit the form after setting query
-    setTimeout(() => {
-      const form = document.getElementById('chat-form') as HTMLFormElement;
-      if (form) form.requestSubmit();
-    }, 50);
+    submitMessage(action);
   };
 
   const handleLogout = () => {
@@ -123,8 +122,7 @@ export default function Page() {
 
   if (!started) {
     return (
-      <div className="min-h-screen bg-[#0B0E14] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
-        <AmbientBackground />
+      <div className="min-h-screen bg-[#0e0f12] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="z-10 max-w-md text-center space-y-8">
           <div className="flex justify-center mb-4">
             {/* Custom SVG Logo */}
@@ -152,11 +150,11 @@ export default function Page() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0B0E14] text-slate-200 overflow-hidden font-sans relative">
+    <div className="flex h-screen bg-[#0e0f12] text-slate-200 overflow-hidden font-sans relative">
       <AmbientBackground />
       
       {/* LEFT SIDEBAR (Nav) */}
-      <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0B0E14]/80 backdrop-blur-xl flex flex-col z-10 hidden md:flex">
+      <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl flex flex-col z-10 hidden md:flex">
         <div className="p-6 flex items-center gap-3 border-b border-white/5">
           <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
@@ -220,24 +218,55 @@ export default function Page() {
       </aside>
 
       {/* CENTER CONTENT (Main AI Chat) */}
-      <main className="flex-1 flex flex-col z-10 bg-[#0B0E14]/40 backdrop-blur-sm min-w-0">
-        <header className="h-[73px] flex-shrink-0 flex items-center px-6 border-b border-white/5 backdrop-blur-md bg-[#0B0E14]/80">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            Terminal Intelligence <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#22C55E]/20 text-[#22C55E] uppercase tracking-wider ml-2">Live</span>
+      <main className="flex-1 flex flex-col z-10 bg-[#0e0f12] relative min-w-0">
+        <header className="h-[73px] flex-shrink-0 flex items-center px-8 border-b border-white/5">
+          <h2 className="text-sm font-medium text-slate-400">
+            Adaptive Portfolio Intelligence
           </h2>
         </header>
         
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar flex flex-col justify-center relative">
           {chatHistory.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center opacity-80">
-              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 shadow-xl">
-                <Activity className="text-[#6C5CE7]" size={32} />
+            <div className="flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto w-full">
+              <h2 className="text-2xl font-medium mb-1 text-slate-300">Ask anything about</h2>
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-orange-400 to-pink-500 bg-clip-text text-transparent mb-10 pb-1">
+                Markets, Stocks & Your Portfolio
+              </h1>
+              
+              {/* Quick Actions moved here, inside the empty state */}
+              <div className="flex flex-wrap justify-center gap-3 w-full mb-8">
+                {["Analyze my portfolio", "Today's top gainers", "IPO GMP today", "What's moving the market"].map(action => (
+                  <button 
+                    key={action}
+                    onClick={() => sendQuickAction(action)}
+                    className="text-xs md:text-sm font-medium bg-[#141824] hover:bg-white/10 border border-white/10 text-slate-300 rounded-full px-5 py-2.5 transition-colors whitespace-nowrap flex items-center gap-2"
+                  >
+                    <Activity size={14} className="text-slate-500" />
+                    {action}
+                  </button>
+                ))}
               </div>
-              <h2 className="text-2xl font-semibold mb-2">How can I help you analyze the market?</h2>
-              <p className="text-slate-400 max-w-md">Ask about your portfolio, technical indicators, breaking news, or scan the market for opportunities.</p>
+              
+              <form id="chat-form" onSubmit={handleChatSubmit} className="relative flex items-center w-full max-w-3xl">
+                <Input 
+                  value={chatQuery}
+                  onChange={e => setChatQuery(e.target.value)}
+                  placeholder="Message T&T Assistant..."
+                  disabled={isChatLoading}
+                  className="w-full bg-[#141824] border border-white/5 h-14 pl-6 pr-16 rounded-xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-inner text-base"
+                />
+                <button 
+                  type="submit" 
+                  disabled={isChatLoading || !chatQuery.trim()}
+                  className="absolute right-2 w-10 h-10 rounded-lg bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
+                >
+                  <ArrowUpRight size={20} />
+                </button>
+              </form>
+              <p className="text-[10px] text-slate-500 mt-4 flex items-center gap-1.5"><Activity size={12}/> AI answers are generated for informational purposes only.</p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-4xl mx-auto w-full pb-32 pt-4">
               {chatHistory.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] rounded-2xl px-5 py-4 ${
@@ -266,41 +295,30 @@ export default function Page() {
           )}
         </div>
         
-        <div className="p-6 pt-2 bg-gradient-to-t from-[#0B0E14] to-transparent">
-          {/* Quick Actions */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {["Analyze my portfolio", "Today's top gainers", "IPO GMP today", "What's moving the market"].map(action => (
+        {chatHistory.length > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0e0f12] via-[#0e0f12]/90 to-transparent flex justify-center">
+            <form id="chat-form-active" onSubmit={handleChatSubmit} className="relative flex items-center w-full max-w-3xl">
+              <Input 
+                value={chatQuery}
+                onChange={e => setChatQuery(e.target.value)}
+                placeholder="Ask the Terminal..."
+                disabled={isChatLoading}
+                className="w-full bg-[#141824] border border-white/10 h-14 pl-6 pr-16 rounded-xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-lg text-base"
+              />
               <button 
-                key={action}
-                onClick={() => sendQuickAction(action)}
-                className="text-xs font-medium bg-[#141824] hover:bg-white/10 border border-white/10 text-slate-300 rounded-full px-4 py-2 transition-colors whitespace-nowrap"
+                type="submit" 
+                disabled={isChatLoading || !chatQuery.trim()}
+                className="absolute right-2 w-10 h-10 rounded-lg bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
               >
-                {action}
+                <ArrowUpRight size={20} />
               </button>
-            ))}
+            </form>
           </div>
-          
-          <form id="chat-form" onSubmit={handleChatSubmit} className="relative flex items-center">
-            <Input 
-              value={chatQuery}
-              onChange={e => setChatQuery(e.target.value)}
-              placeholder="Ask the Terminal..."
-              disabled={isChatLoading}
-              className="w-full bg-[#141824] border border-white/10 h-14 pl-6 pr-16 rounded-2xl text-slate-200 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-[#6C5CE7] shadow-inner text-base"
-            />
-            <button 
-              type="submit" 
-              disabled={isChatLoading || !chatQuery.trim()}
-              className="absolute right-2 w-10 h-10 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white flex items-center justify-center disabled:opacity-50 disabled:hover:bg-[#6C5CE7] transition-colors"
-            >
-              <ArrowUpRight size={20} />
-            </button>
-          </form>
-        </div>
+        )}
       </main>
 
       {/* RIGHT SIDEBAR (Live Widgets) */}
-      <aside className="w-[320px] flex-shrink-0 border-l border-white/5 bg-[#0B0E14]/80 backdrop-blur-xl flex flex-col z-10 hidden lg:flex">
+      <aside className="w-[320px] flex-shrink-0 border-l border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl flex flex-col z-10 hidden lg:flex">
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-6">
           
           {/* Market Overview Widget */}

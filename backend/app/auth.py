@@ -13,9 +13,26 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from google_auth_oauthlib.flow import Flow
 
+from cryptography.fernet import Fernet
+import base64
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-jwt-keep-it-secret")
+
+# Ensure the fernet key is a 32-byte base64 encoded string
+# If SECRET_KEY is not 32 bytes, we pad it for demo purposes
+_fernet_key = base64.urlsafe_b64encode(SECRET_KEY.ljust(32, 'a')[:32].encode())
+fernet = Fernet(_fernet_key)
+
+def encrypt_data(data: str) -> str:
+    return fernet.encrypt(data.encode()).decode()
+
+def decrypt_data(token: str) -> str:
+    try:
+        return fernet.decrypt(token.encode()).decode()
+    except:
+        return ""
 
 def verify_google_token(token: str):
     try:

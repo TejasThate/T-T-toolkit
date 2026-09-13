@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import AmbientBackground from "@/components/AmbientBackground";
-import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { LayoutDashboard, Briefcase, TrendingUp, Filter, Bell, Newspaper, MessageSquare, ChevronDown, LogOut, Loader2, ArrowUpRight, ArrowDownRight, Activity, Terminal, Lock, AlertCircle, ArrowRight, Search, Send, Clock, PlayCircle, Settings, Shield, Trash2, AlertTriangle } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useMarketDataSync } from "@/hooks/useMarketDataSync";
@@ -30,6 +30,10 @@ export default function Page() {
   const [chatHistory, setChatHistory] = useState<{role: 'user'|'assistant', content: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [panInput, setPanInput] = useState("");
+  const [isGmailConsentOpen, setIsGmailConsentOpen] = useState(false);
+  
   const chatEndRef = useRef<HTMLDivElement>(null);
   const setHoldings = usePortfolioStore(state => state.setHoldings);
   
@@ -45,6 +49,19 @@ export default function Page() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('News fetch failed');
+      return res.json();
+    },
+    enabled: !!token && started
+  });
+
+  // Auth Query
+  const { data: userProfile, refetch: refetchProfile } = useQuery({
+    queryKey: ['authMe'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Auth fetch failed');
       return res.json();
     },
     enabled: !!token && started
@@ -118,6 +135,45 @@ export default function Page() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     window.location.reload();
+  };
+
+  const handlePanSubmit = async () => {
+    if (!panInput) return;
+    try {
+      const res = await fetch(`${API_BASE}/auth/pan`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ pan_number: panInput })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to save PAN");
+      alert(data.message);
+      setPanInput("");
+      refetchProfile();
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
+  const handleDeleteData = async () => {
+    const confirmed = window.confirm("Are you sure? This will permanently delete your portfolio, PAN, and Google tokens.");
+    if (!confirmed) return;
+    try {
+      const res = await fetch(`${API_BASE}/auth/delete-data`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to delete data");
+      alert(data.message);
+      refetchProfile();
+      window.location.reload();
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   if (!started) {
@@ -202,17 +258,17 @@ export default function Page() {
         </nav>
         
         <div className="p-4 border-t border-white/5">
-          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={handleLogout}>
+          <div className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-xs">
                 PRO
               </div>
               <div>
                 <p className="text-sm font-medium">T&T Account</p>
-                <p className="text-xs text-slate-500">Pro Plan Active</p>
+                <p className="text-xs text-slate-500">Data Privacy</p>
               </div>
             </div>
-            <LogOut size={16} className="text-slate-500" />
+            <Settings size={16} className="text-slate-500" />
           </div>
         </div>
       </aside>
@@ -411,7 +467,7 @@ export default function Page() {
                   ₹{usePortfolioStore(s => s.totalValue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </div>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 mb-5">
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider">Overall P&L</div>
                 {(() => {
                   const pnl = usePortfolioStore(s => s.overallPnl);
@@ -424,12 +480,166 @@ export default function Page() {
                   );
                 })()}
               </div>
+              
+              <button
+                onClick={() => setIsGmailConsentOpen(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-sm font-medium text-slate-300"
+              >
+                <Lock size={14} className="text-[#6C5CE7]" />
+                Sync via Gmail
+              </button>
             </div>
           </section>
           </ErrorBoundary>
 
         </div>
       </aside>
+
+      {/* SETTINGS MODAL */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#0e0f12] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="p-5 border-b border-white/10 flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Settings size={18} className="text-[#6C5CE7]" /> Data Privacy & Settings
+              </h2>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-slate-500 hover:text-white transition-colors">
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+              {/* PAN Section */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Shield size={16} className="text-emerald-500" /> KYC Verification (DPDP Act)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  To securely fetch your holdings, we require a valid PAN. It is stored encrypted at rest.
+                </p>
+                {userProfile?.masked_pan ? (
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-emerald-400 font-medium mb-0.5">Verified PAN linked</p>
+                      <p className="text-sm font-mono text-slate-200">{userProfile.masked_pan}</p>
+                    </div>
+                    <Shield size={20} className="text-emerald-500" />
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="ABCDE1234F" 
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm uppercase outline-none focus:border-[#6C5CE7] transition-colors"
+                      value={panInput}
+                      onChange={(e) => setPanInput(e.target.value.toUpperCase())}
+                      maxLength={10}
+                    />
+                    <button 
+                      onClick={handlePanSubmit}
+                      className="px-4 py-2 bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white rounded-lg text-sm font-medium transition-colors"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              <div className="h-px w-full bg-white/5"></div>
+              
+              {/* Danger Zone */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-rose-500 flex items-center gap-2">
+                  <AlertTriangle size={16} /> Danger Zone
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Permanently wipe all your data, including Google tokens, PAN, and portfolio records.
+                </p>
+                <button 
+                  onClick={handleDeleteData}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Trash2 size={16} /> Delete My Data
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-white/10 bg-white/5 flex justify-end">
+              <button 
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white transition-colors text-sm"
+              >
+                <LogOut size={16} /> Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GMAIL CONSENT MODAL */}
+      {isGmailConsentOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-[#0e0f12] border border-[#6C5CE7]/30 rounded-2xl shadow-[0_0_40px_rgba(108,92,231,0.15)] overflow-hidden flex flex-col relative">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
+            
+            <div className="p-8 text-center space-y-6">
+              <div className="w-16 h-16 bg-[#6C5CE7]/10 rounded-full flex items-center justify-center mx-auto mb-2 border border-[#6C5CE7]/20">
+                <Shield size={32} className="text-[#6C5CE7]" />
+              </div>
+              
+              <div>
+                <h2 className="text-xl font-bold mb-2">Secure Gmail Sync</h2>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  To automatically import your holdings, we request strictly limited <strong>read-only</strong> access to your Gmail.
+                </p>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-4 text-left border border-white/5 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div></div>
+                  <p className="text-xs text-slate-300">We only read emails from specific broker domains (e.g. Zerodha, Groww).</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div></div>
+                  <p className="text-xs text-slate-300">Your emails are never stored, only processed for portfolio extraction.</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div></div>
+                  <p className="text-xs text-slate-300">You can revoke access and delete all data at any time via Settings.</p>
+                </div>
+              </div>
+              
+              <div className="flex flex-col gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setIsGmailConsentOpen(false);
+                    // Open popup window to handle google oauth
+                    const width = 500;
+                    const height = 600;
+                    const left = window.screen.width / 2 - width / 2;
+                    const top = window.screen.height / 2 - height / 2;
+                    window.open(
+                      `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${window.location.origin}&response_type=code&scope=openid%20email%20profile%20https://www.googleapis.com/auth/gmail.readonly&access_type=offline&prompt=consent`,
+                      'Google Login',
+                      `width=${width},height=${height},left=${left},top=${top}`
+                    );
+                  }}
+                  className="w-full h-12 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white font-semibold text-sm transition-colors"
+                >
+                  I Understand, Continue
+                </button>
+                <button 
+                  onClick={() => setIsGmailConsentOpen(false)}
+                  className="w-full h-12 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

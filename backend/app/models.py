@@ -10,6 +10,7 @@ class User(Base):
     hashed_password = Column(String)
     google_access_token = Column(String, nullable=True)
     google_refresh_token = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
 
 class Holding(Base):
     __tablename__ = "holdings"

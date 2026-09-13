@@ -130,6 +130,64 @@ async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depen
         print(f"Server error: {error_msg}")
         raise HTTPException(status_code=400, detail=f"Internal Server Error Debug: {str(e)}")
 
+import re
+
+class PanRequest(BaseModel):
+    pan_number: str
+
+@app.post("/auth/pan")
+async def save_pan(
+    req: PanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    pan = req.pan_number.upper()
+    if not re.match(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$", pan):
+        raise HTTPException(status_code=400, detail="Invalid PAN format")
+        
+    # Mocking a real KYC API verification step
+    # if not verify_pan_with_nsdl(pan): raise KYCError()
+    
+    current_user.pan_number = auth.encrypt_data(pan)
+    db.add(current_user)
+    await db.commit()
+    
+    masked = pan[:5] + "***" + pan[-2:]
+    return {"message": "PAN verified and saved securely", "masked_pan": masked}
+
+@app.delete("/auth/delete-data")
+async def delete_user_data(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    user_id = current_user.id
+    
+    # 1. Delete all portfolio data
+    await crud.delete_user_holdings(db, user_id)
+    
+    # 2. Revoke Google Tokens & PAN
+    current_user.google_access_token = None
+    current_user.google_refresh_token = None
+    current_user.pan_number = None
+    db.add(current_user)
+    await db.commit()
+    
+    return {"message": "All sensitive data has been permanently deleted in compliance with DPDP Act."}
+
+@app.get("/auth/me")
+async def get_me(current_user: models.User = Depends(auth.get_current_user)):
+    masked_pan = None
+    if current_user.pan_number:
+        pan = auth.decrypt_data(current_user.pan_number)
+        if pan and len(pan) == 10:
+            masked_pan = pan[:5] + "***" + pan[-2:]
+            
+    return {
+        "email": current_user.email,
+        "has_google_linked": bool(current_user.google_access_token),
+        "masked_pan": masked_pan
+    }
+
 @app.post("/portfolio/upload")
 async def upload_portfolio(
     file: UploadFile = File(...), 

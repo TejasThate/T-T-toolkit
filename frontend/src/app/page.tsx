@@ -176,21 +176,21 @@ export default function Page() {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE}/ai/chat`, {
+      const res = await fetch(`${API_BASE}/api/ai/chat`, {
         method: "POST",
-        headers,
-        body: JSON.stringify({ query: message }),
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ message }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setChatHistory(prev => [...prev, { role: "assistant", content: data.reply || "No response received." }]);
-      } else {
-        setChatHistory(prev => [...prev, { role: "assistant", content: "Error communicating with AI backend. Please check if the server is running." }]);
-      }
-    } catch (err) {
-      console.error("Chat error", err);
-      setChatHistory(prev => [...prev, { role: "assistant", content: "Sorry, an error occurred while connecting to the AI backend. It might be offline." }]);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Chat failed");
+      
+      setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
+    } catch (err: any) {
+      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err.message}. Ensure your GEMINI_API_KEY is configured on the backend.` }]);
     } finally {
       setIsChatLoading(false);
     }

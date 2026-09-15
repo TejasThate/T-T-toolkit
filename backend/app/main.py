@@ -13,7 +13,7 @@ from fastapi import UploadFile, File
 from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service, market_service, prediction_service
 from app.services import market_data
-from app.services import gmail_service, pdf_parser
+from app.services import gmail_service, pdf_parser, ai_service
 
 app = FastAPI(title="T&T Toolkit API", version="0.1.0")
 
@@ -526,6 +526,69 @@ async def sync_portfolio_gmail(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail="An unexpected error occurred during sync.")
+
+# ---- AI ENDPOINTS ----
+
+class ChatRequest(BaseModel):
+    message: str
+
+async def _build_ai_contexts(current_user: models.User, db: AsyncSession):
+    # 1. Fetch Portfolio
+    result = await db.execute(select(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+    holdings = result.scalars().all()
+    
+    if not holdings:
+        portfolio_context = "User has no synced holdings."
+        market_context = "No holdings to track."
+    else:
+        portfolio_context = "\n".join([f"- {h.symbol}: {h.quantity} shares (Avg: {h.average_price})" for h in holdings])
+        
+        # 2. Fetch Live Quotes for Portfolio
+        symbols = [h.symbol for h in holdings]
+        live_quotes = await market_data.fetch_live_quotes(symbols)
+        market_context = ""
+        for sym, data in live_quotes.items():
+            market_context += f"- {sym}: ₹{data.get('price', 0)} (Change: {data.get('change_pct', 0)}%)\n"
+            
+    return portfolio_context, market_context
+
+@app.post("/api/ai/chat")
+async def chat_with_ai(
+    request: ChatRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    portfolio_context, market_context = await _build_ai_contexts(current_user, db)
+    
+    # 3. Fetch Top Gainers
+    gainers = await market_data.fetch_top_gainers(limit=3)
+    gainers_context = "\n".join([f"- {g['symbol']}: +{g['change_pct']}%" for g in gainers])
+    
+    # 4. Generate AI Response
+    try:
+        response_text = await ai_service.generate_chat_response(
+            query=request.message,
+            portfolio_context=portfolio_context,
+            market_context=market_context,
+            gainers_context=gainers_context
+        )
+        return {"response": response_text}
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ai/forecast")
+async def get_ai_forecast(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    portfolio_context, market_context = await _build_ai_contexts(current_user, db)
+    
+    # Generate Forecast Summary
+    forecast_text = await ai_service.generate_forecast_summary(
+        portfolio_context=portfolio_context,
+        market_context=market_context
+    )
+    return {"forecast": forecast_text}
 
 @app.post("/news/fetch")
 async def trigger_news_fetch(

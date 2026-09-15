@@ -590,83 +590,16 @@ async def get_ai_forecast(
     )
     return {"forecast": forecast_text}
 
-@app.post("/news/fetch")
-async def trigger_news_fetch(
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    processed = await news_service.fetch_and_process_news(db)
-    return {"message": f"Successfully fetched and rated {processed} new articles."}
-
-@app.get("/news", response_model=List[schemas.NewsArticle])
-async def get_news(
+@app.get("/api/news")
+async def get_top_news(
+    current_user: models.User = Depends(auth.get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(
-        select(models.NewsArticle)
-        .order_by(models.NewsArticle.impact_score.desc())
-        .limit(10)
-    )
-    return result.scalars().all()
-
-from pydantic import BaseModel
-class ChatRequest(BaseModel):
-    query: str
-
-@app.post("/ai/chat")
-async def ai_chat(
-    req: ChatRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    holdings = await crud.get_holdings(db, current_user.id)
-    portfolio_context = "\n".join([f"{h.symbol} ({h.company_name}): {h.quantity} shares @ {h.average_price}" for h in holdings])
-    
-    prompt = f"""
-    You are an expert financial AI assistant. The user is asking a question about their stock portfolio or the market.
-    Here is the user's current portfolio:
-    {portfolio_context if portfolio_context else "No stocks currently held."}
-    
-    User Query: {req.query}
-    
-    Provide a helpful, concise, and analytical answer. Keep your response formatting clean and markdown compatible.
     """
-    
+    Fetches the latest top news and generates a sentiment tag.
+    """
     try:
-        if not news_service.client:
-            return {"reply": "Groq API key not configured. I cannot process this request."}
-            
-        models_to_try = [
-            "openai/gpt-oss-120b",
-            "openai/gpt-oss-20b",
-            "qwen/qwen3.8-27b",
-            "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant",
-            "llama3-8b-8192",
-            "llama3-70b-8192",
-            "gemma2-9b-it",
-            "llama-3.2-1b-preview",
-            "llama-3.2-3b-preview",
-            "llama-3.2-11b-vision-preview",
-            "llama-3.2-90b-vision-preview",
-            "mixtral-8x7b-32768"
-        ]
-        
-        last_err = None
-        for m in models_to_try:
-            try:
-                response = await news_service.client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model=m,
-                    temperature=0.7,
-                )
-                return {"reply": response.choices[0].message.content}
-            except Exception as e:
-                if "decommissioned" in str(e).lower() or "not exist" in str(e).lower() or "access" in str(e).lower():
-                    last_err = e
-                    continue
-                raise e
-        else:
-            raise last_err
+        articles = await news_service.fetch_financial_news(limit=10)
+        return articles
     except Exception as e:
-        return {"reply": f"Sorry, I encountered an error: {e}"}
+        raise HTTPException(status_code=500, detail=f"Failed to fetch news: {e}")

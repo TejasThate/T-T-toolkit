@@ -53,7 +53,7 @@ def exchange_google_code(code: str, redirect_uri: str = 'postmessage'):
     
     flow = Flow.from_client_config(
         client_config,
-        scopes=['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly'],
+        scopes=['openid', 'email', 'profile'],
         redirect_uri=redirect_uri
     )
     

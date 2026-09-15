@@ -15,6 +15,8 @@ import { useMarketDataSync } from "@/hooks/useMarketDataSync";
 import { usePortfolioStore } from "@/store/usePortfolioStore";
 import { PredictionChart } from "@/components/PredictionChart";
 import { PredictionStatsWidget } from "@/components/PredictionStatsWidget";
+import { useGoogleLogin } from '@react-oauth/google';
+import { toast } from 'sonner';
 
 const API_BASE = "";
 
@@ -25,8 +27,60 @@ export default function Page() {
   useEffect(() => {
     // Check auth
     const t = localStorage.getItem("token");
-    setToken(t);
+    if (t) {
+      setToken(t);
+      setStarted(true);
+    }
   }, []);
+
+  const login = useGoogleLogin({
+    flow: 'auth-code',
+    onSuccess: async codeResponse => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/google/code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: codeResponse.code })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Login failed");
+        }
+        const data = await res.json();
+        localStorage.setItem("token", data.access_token);
+        setToken(data.access_token);
+        setStarted(true);
+        toast.success("Logged in successfully");
+      } catch (e: any) {
+        toast.error(`Error: ${e.message}`);
+      }
+    },
+    onError: error => toast.error("Google Login Failed")
+  });
+
+  const syncGmail = useGoogleLogin({
+    flow: 'auth-code',
+    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    onSuccess: async codeResponse => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/google/code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: codeResponse.code })
+        });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.detail || "Gmail Sync failed");
+        }
+        toast.success("Gmail Sync connected successfully");
+        setIsGmailConsentOpen(false);
+        // Additional sync API call could happen here
+      } catch (e: any) {
+        toast.error(`Error: ${e.message}`);
+      }
+    },
+    onError: error => toast.error("Gmail Sync Failed")
+  });
 
   const [chatQuery, setChatQuery] = useState("");
   const [chatHistory, setChatHistory] = useState<{role: 'user'|'assistant', content: string}[]>([]);
@@ -199,10 +253,10 @@ export default function Page() {
           </h1>
           <p className="text-slate-400 text-lg">Adaptive Trading Intelligence</p>
           <Button 
-            onClick={() => setStarted(true)}
+            onClick={() => login()}
             className="w-full h-14 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white font-bold text-lg shadow-[0_0_20px_rgba(108,92,231,0.3)] transition-all"
           >
-            Launch Terminal
+            Log In with Google
           </Button>
         </div>
       </div>
@@ -630,17 +684,7 @@ export default function Page() {
               <div className="flex flex-col gap-3 pt-2">
                 <button 
                   onClick={() => {
-                    setIsGmailConsentOpen(false);
-                    // Open popup window to handle google oauth
-                    const width = 500;
-                    const height = 600;
-                    const left = window.screen.width / 2 - width / 2;
-                    const top = window.screen.height / 2 - height / 2;
-                    window.open(
-                      `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}&redirect_uri=${window.location.origin}&response_type=code&scope=openid%20email%20profile%20https://www.googleapis.com/auth/gmail.readonly&access_type=offline&prompt=consent`,
-                      'Google Login',
-                      `width=${width},height=${height},left=${left},top=${top}`
-                    );
+                    syncGmail();
                   }}
                   className="w-full h-12 rounded-xl bg-[#6C5CE7] hover:bg-[#5a4cd1] text-white font-semibold text-sm transition-colors"
                 >

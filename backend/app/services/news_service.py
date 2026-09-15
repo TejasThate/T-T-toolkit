@@ -42,16 +42,17 @@ async def fetch_financial_news(query: str = "Indian stock market OR NSE OR BSE",
                 title = article.get("title")
                 description = article.get("description", "")
                 
-                # Tag sentiment using Gemini (very fast/cheap check)
+                # Tag sentiment using Groq (fast/cheap check)
                 sentiment = "Neutral"
                 if ai_service.client:
                     try:
                         sentiment_prompt = f"Analyze the sentiment of this financial news headline: '{title}'. Reply with ONLY ONE WORD: 'Bullish', 'Bearish', or 'Neutral'."
-                        gen_res = await ai_service.client.aio.models.generate_content(
-                            model='gemini-2.5-flash',
-                            contents=sentiment_prompt
+                        gen_res = await ai_service.client.chat.completions.create(
+                            model='llama3-8b-8192',
+                            messages=[{"role": "user", "content": sentiment_prompt}],
+                            temperature=0.1
                         )
-                        raw_sentiment = gen_res.text.strip().lower()
+                        raw_sentiment = gen_res.choices[0].message.content.strip().lower()
                         if "bullish" in raw_sentiment: sentiment = "Bullish"
                         elif "bearish" in raw_sentiment: sentiment = "Bearish"
                     except Exception as e:

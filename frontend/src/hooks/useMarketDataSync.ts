@@ -8,23 +8,28 @@ export function useMarketDataSync() {
   const { data, error, isFetching } = useQuery({
     queryKey: ['marketData'],
     queryFn: async () => {
-      const response = await fetch('/api/market/live');
+      const token = localStorage.getItem("token");
+      if (!token) return {};
+      
+      const response = await fetch('/api/market/quotes?symbols=HDFCBANK,TCS,INFY,RELIANCE', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
       return response.json();
     },
-    // Poll every 15 seconds
-    refetchInterval: 15 * 1000,
+    // Poll every 60 seconds to avoid yfinance rate limits
+    refetchInterval: 60 * 1000,
     refetchIntervalInBackground: true,
   });
 
   useEffect(() => {
-    if (data && data.data) {
+    if (data) {
       // Map market data to a Record<string, number>
       const prices: Record<string, number> = {};
-      Object.keys(data.data).forEach(symbol => {
-        prices[symbol] = data.data[symbol].ltp;
+      Object.keys(data).forEach(symbol => {
+        prices[symbol] = data[symbol].price;
       });
       
       updateMarketPrices(prices);

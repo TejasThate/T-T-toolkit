@@ -26,7 +26,9 @@ from app.models import User, Holding, NewsArticle, PredictionLog
 target_metadata = Base.metadata
 
 from app.database import DATABASE_URL
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+# Escape % to %% because configparser uses % for interpolation
+escaped_url = DATABASE_URL.replace("%", "%%") if DATABASE_URL else ""
+config.set_main_option("sqlalchemy.url", escaped_url)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

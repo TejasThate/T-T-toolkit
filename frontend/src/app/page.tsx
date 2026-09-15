@@ -112,6 +112,20 @@ export default function Page() {
     enabled: !!token && started
   });
 
+  // Top Gainers Query
+  const { data: topGainers = [], isFetching: gainersLoading } = useQuery({
+    queryKey: ['topGainers'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/market/top-gainers?limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Top gainers fetch failed');
+      return res.json();
+    },
+    enabled: !!token && started,
+    refetchInterval: 60 * 1000
+  });
+
   // Auth Query
   const { data: userProfile, refetch: refetchProfile } = useQuery({
     queryKey: ['authMe'],
@@ -452,19 +466,19 @@ export default function Page() {
             </div>
             
             <div className="space-y-3">
-              {Object.values(marketData).length > 0 ? (
-                (Object.values(marketData) as any[]).map((item: any) => {
-                  const isUp = item.change >= 0;
+              {Object.keys(marketData).length > 0 ? (
+                Object.entries(marketData).map(([symbol, item]: [string, any]) => {
+                  const isUp = item.change_pct >= 0;
                   return (
-                    <div key={item.symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
+                    <div key={symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
                       <div>
-                        <div className="text-sm font-semibold text-slate-200">{item.symbol.replace('.NS', '').replace('^', '')}</div>
+                        <div className="text-sm font-semibold text-slate-200">{symbol.replace('.NS', '').replace('^', '')}</div>
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-mono text-slate-200">{item.price.toFixed(2)}</div>
                         <div className={`text-xs font-mono font-medium flex items-center justify-end gap-1 ${isUp ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
                           {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                          {Math.abs(item.change_percent).toFixed(2)}%
+                          {Math.abs(item.change_pct).toFixed(2)}%
                         </div>
                       </div>
                     </div>
@@ -473,6 +487,41 @@ export default function Page() {
               ) : (
                 <div className="text-xs text-slate-500 text-center py-4 bg-[#141824] rounded-xl border border-white/5">
                   Fetching live data...
+                </div>
+              )}
+            </div>
+          </section>
+          </ErrorBoundary>
+
+          {/* Top Gainers Widget */}
+          <ErrorBoundary>
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400 text-[#22C55E]">Top Gainers</h3>
+              {gainersLoading && <Loader2 className="w-3 h-3 animate-spin text-slate-500" />}
+            </div>
+            
+            <div className="space-y-3">
+              {topGainers.length > 0 ? (
+                topGainers.map((item: any) => {
+                  return (
+                    <div key={item.symbol} className="bg-[#141824] border border-[#22C55E]/10 rounded-xl p-3 flex justify-between items-center group hover:border-[#22C55E]/30 transition-colors">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-200">{item.symbol}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-mono text-slate-200">{item.price.toFixed(2)}</div>
+                        <div className="text-xs font-mono font-medium flex items-center justify-end gap-1 text-[#22C55E]">
+                          <ArrowUpRight size={12} />
+                          {item.change_pct.toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-xs text-slate-500 text-center py-4 bg-[#141824] rounded-xl border border-white/5">
+                  Fetching top gainers...
                 </div>
               )}
             </div>

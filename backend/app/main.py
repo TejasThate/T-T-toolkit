@@ -12,8 +12,9 @@ from fastapi import UploadFile, File
 from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service, market_service, prediction_service
 from .gmail_service import sync_demat_from_gmail
+from app.services import market_data
 
-app = FastAPI(title="T&T API", version="0.1.0")
+app = FastAPI(title="T&T Toolkit API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -452,6 +453,25 @@ async def delete_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
     return {"status": "ok"}
 
+
+# ---- MARKET DATA ENDPOINTS ----
+
+@app.get("/api/market/quotes")
+async def get_market_quotes(
+    symbols: str = Query(..., description="Comma separated list of symbols"),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
+    quotes = await market_data.fetch_quotes(symbol_list)
+    return quotes
+
+@app.get("/api/market/top-gainers")
+async def get_top_gainers(
+    limit: int = 5,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    gainers = await market_data.fetch_top_gainers(limit=limit)
+    return gainers
 
 @app.post("/news/fetch")
 async def trigger_news_fetch(

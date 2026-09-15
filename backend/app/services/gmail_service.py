@@ -1,0 +1,46 @@
+import logging
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+import base64
+
+logger = logging.getLogger(__name__)
+
+async def fetch_cas_pdf_from_gmail(access_token: str) -> bytes:
+    """
+    Connects to the user's Gmail using their OAuth token and searches for the latest
+    NSDL/CDSL CAS statement PDF.
+    Returns the bytes of the PDF attachment.
+    """
+    try:
+        creds = Credentials(token=access_token)
+        service = build('gmail', 'v1', credentials=creds)
+        
+        # Search for CAS emails with attachments
+        query = "has:attachment (subject:CAS OR subject:Consolidated Account Statement OR subject:eCAS)"
+        results = service.users().messages().list(userId='me', q=query, maxResults=5).execute()
+        messages = results.get('messages', [])
+
+        if not messages:
+            raise ValueError("No CAS emails found in your inbox.")
+
+        # Iterate through messages to find a PDF attachment
+        for msg in messages:
+            msg_id = msg['id']
+            message = service.users().messages().get(userId='me', id=msg_id).execute()
+            
+            parts = message.get('payload', {}).get('parts', [])
+            for part in parts:
+                if part.get('filename') and part.get('filename').lower().endswith('.pdf'):
+                    attachment_id = part['body'].get('attachmentId')
+                    if attachment_id:
+                        attachment = service.users().messages().attachments().get(
+                            userId='me', messageId=msg_id, id=attachment_id).execute()
+                        
+                        file_data = base64.urlsafe_b64decode(attachment['data'].encode('UTF-8'))
+                        return file_data
+                        
+        raise ValueError("Found CAS emails but couldn't extract any PDF attachments.")
+        
+    except Exception as e:
+        logger.error(f"Gmail sync error: {e}")
+        raise ValueError(f"Failed to sync with Gmail: {e}")

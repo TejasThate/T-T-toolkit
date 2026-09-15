@@ -1,9 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import delete
 from typing import List
 import csv
 import io
@@ -11,8 +12,8 @@ from fastapi import UploadFile, File
 
 from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service, market_service, prediction_service
-from .gmail_service import sync_demat_from_gmail
 from app.services import market_data
+from app.services import gmail_service, pdf_parser
 
 app = FastAPI(title="T&T Toolkit API", version="0.1.0")
 
@@ -472,6 +473,59 @@ async def get_top_gainers(
 ):
     gainers = await market_data.fetch_top_gainers(limit=limit)
     return gainers
+
+# ---- PORTFOLIO ENDPOINTS ----
+
+class GmailSyncRequest(BaseModel):
+    google_access_token: str
+
+@app.post("/api/portfolio/sync")
+async def sync_portfolio_gmail(
+    request: GmailSyncRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Ensure user has a PAN
+    if not current_user.encrypted_pan:
+        raise HTTPException(status_code=400, detail="Please verify your PAN in Settings first.")
+        
+    try:
+        # Decrypt PAN (mocked decryption for now, assuming it's stored plaintext in prototype)
+        # In a real system, you'd use Fernet to decrypt `current_user.encrypted_pan`
+        pan = current_user.encrypted_pan
+        
+        # 1. Fetch PDF from Gmail
+        pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(request.google_access_token)
+        
+        # 2. Parse PDF
+        holdings_list = pdf_parser.parse_cdsl_cas(pdf_bytes, password=pan.upper())
+        
+        if not holdings_list:
+            raise HTTPException(status_code=400, detail="Successfully parsed PDF but found no valid holdings.")
+            
+        # 3. Save to DB (Clear old holdings first for a fresh sync, or implement upsert)
+        # For prototype, we will clear existing and insert new
+        await db.execute(delete(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+        
+        new_holdings = []
+        for h in holdings_list:
+            new_holding = models.PortfolioHolding(
+                user_id=current_user.id,
+                symbol=h["symbol"],
+                quantity=h["quantity"],
+                average_price=h["avg_price"]
+            )
+            db.add(new_holding)
+            new_holdings.append(new_holding)
+            
+        await db.commit()
+        
+        return {"message": f"Successfully synced {len(new_holdings)} holdings from your CAS statement!"}
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during sync.")
 
 @app.post("/news/fetch")
 async def trigger_news_fetch(

@@ -59,22 +59,25 @@ export default function Page() {
   });
 
   const syncGmail = useGoogleLogin({
-    flow: 'auth-code',
     scope: 'https://www.googleapis.com/auth/gmail.readonly',
-    onSuccess: async codeResponse => {
+    onSuccess: async tokenResponse => {
       try {
-        const res = await fetch(`${API_BASE}/auth/google/code`, {
+        toast.info("Scanning Gmail for CAS statements...");
+        const res = await fetch(`${API_BASE}/api/portfolio/sync`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: codeResponse.code })
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` 
+          },
+          body: JSON.stringify({ google_access_token: tokenResponse.access_token })
         });
+        const data = await res.json();
         if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.detail || "Gmail Sync failed");
+          throw new Error(data.detail || "Gmail Sync failed");
         }
-        toast.success("Gmail Sync connected successfully");
+        toast.success(data.message);
         setIsGmailConsentOpen(false);
-        // Additional sync API call could happen here
+        refetchProfile();
       } catch (e: any) {
         toast.error(`Error: ${e.message}`);
       }
@@ -586,6 +589,18 @@ export default function Page() {
                   );
                 })()}
               </div>
+
+              {portfolioData && portfolioData.length > 0 && (
+                <div className="mb-5 space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+                  <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">My Holdings</div>
+                  {portfolioData.map((h: any) => (
+                    <div key={h.symbol} className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-slate-300">{h.symbol}</span>
+                      <span className="font-mono text-slate-400">{h.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               
               <button
                 onClick={() => setIsGmailConsentOpen(true)}

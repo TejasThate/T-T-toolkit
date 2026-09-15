@@ -25,11 +25,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    # Database connection test (tables now managed by Alembic)
     try:
         async with engine.begin() as conn:
-            # Run table creation (not recommended for production, use alembic)
-            await conn.run_sync(Base.metadata.create_all)
-        print("Successfully connected to the database and created tables.")
+            pass
+        print("Successfully connected to the database.")
     except Exception as e:
         print(f"Failed to connect to the database on startup: {e}")
         print("The app will still start, but database operations will fail until DATABASE_URL is corrected.")
@@ -195,13 +195,25 @@ async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depen
             user = models.User(email=email, hashed_password=hashed_password)
             db.add(user)
         
-        # Save tokens
-        user.google_access_token = auth.encrypt_data(token_info["access_token"])
-        if token_info.get("refresh_token"):
-            user.google_refresh_token = auth.encrypt_data(token_info["refresh_token"])
-            
         await db.commit()
         await db.refresh(user)
+
+        # Save tokens
+        token_result = await db.execute(select(models.OAuthToken).where(
+            models.OAuthToken.user_id == user.id,
+            models.OAuthToken.provider == 'google'
+        ))
+        oauth_token = token_result.scalars().first()
+        
+        if not oauth_token:
+            oauth_token = models.OAuthToken(user_id=user.id, provider='google')
+            db.add(oauth_token)
+            
+        oauth_token.access_token = auth.encrypt_data(token_info["access_token"])
+        if token_info.get("refresh_token"):
+            oauth_token.refresh_token = auth.encrypt_data(token_info["refresh_token"])
+            
+        await db.commit()
             
         access_token = auth.create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}
@@ -248,9 +260,10 @@ async def delete_user_data(
     # 1. Delete all portfolio data
     await crud.delete_user_holdings(db, user_id)
     
-    # 2. Revoke Google Tokens & PAN
-    current_user.google_access_token = None
-    current_user.google_refresh_token = None
+    # 2. Delete OAuth Tokens
+    await db.execute(models.OAuthToken.__table__.delete().where(models.OAuthToken.user_id == user_id))
+    
+    # 3. Clear PAN
     current_user.pan_number = None
     db.add(current_user)
     await db.commit()
@@ -258,17 +271,28 @@ async def delete_user_data(
     return {"message": "All sensitive data has been permanently deleted in compliance with DPDP Act."}
 
 @app.get("/auth/me")
-async def get_me(current_user: models.User = Depends(auth.get_current_user)):
+async def get_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
     masked_pan = None
     if current_user.pan_number:
         pan = auth.decrypt_data(current_user.pan_number)
         if pan and len(pan) == 10:
             masked_pan = pan[:5] + "***" + pan[-2:]
             
+    # Check if google token exists
+    token_result = await db.execute(select(models.OAuthToken).where(
+        models.OAuthToken.user_id == current_user.id,
+        models.OAuthToken.provider == 'google'
+    ))
+    oauth_token = token_result.scalars().first()
+    
     return {
         "email": current_user.email,
-        "has_google_linked": bool(current_user.google_access_token),
-        "masked_pan": masked_pan
+        "has_google_linked": oauth_token is not None,
+        "has_pan_verified": current_user.pan_number is not None,
+        "pan_masked": masked_pan
     }
 
 @app.post("/portfolio/upload")
@@ -324,24 +348,110 @@ async def get_portfolio(
     return holdings
 
 @app.post("/portfolio/sync-gmail")
-async def trigger_gmail_sync(
+async def sync_gmail_route(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if not current_user.google_access_token:
-        raise HTTPException(status_code=400, detail="Gmail not linked. Please login with Google.")
-        
-    result = await sync_demat_from_gmail(
-        db, 
-        current_user.id, 
-        current_user.google_access_token, 
-        current_user.google_refresh_token
-    )
+    token_result = await db.execute(select(models.OAuthToken).where(
+        models.OAuthToken.user_id == current_user.id,
+        models.OAuthToken.provider == 'google'
+    ))
+    oauth_token = token_result.scalars().first()
     
-    if result["status"] == "error":
-        raise HTTPException(status_code=500, detail=result["message"])
+    if not oauth_token:
+        raise HTTPException(status_code=400, detail="Google account not linked or missing permissions")
         
-    return result
+    try:
+        # In a real app we'd refresh the token using google_refresh_token if needed
+        # For now, pass the decrypted access and refresh tokens to the sync service
+        access_token = auth.decrypt_data(oauth_token.access_token)
+        refresh_token = auth.decrypt_data(oauth_token.refresh_token) if oauth_token.refresh_token else None
+        
+        # We need the client ID/secret to refresh tokens if needed
+        import os
+        from google.oauth2.credentials import Credentials
+        
+        creds = Credentials(
+            token=access_token,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET")
+        )
+        
+        # Here we would actually process the emails. 
+        # For demonstration we'll just parse the mock emails in the service.
+        results = await sync_demat_from_gmail(
+            db, 
+            current_user.id,
+            creds
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ---- CHAT ENDPOINTS ----
+
+@app.post("/chat/sessions", response_model=schemas.ChatSession)
+async def create_chat_session(
+    session: schemas.ChatSessionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    return await crud.create_chat_session(db, current_user.id, session.title)
+
+@app.get("/chat/sessions", response_model=List[schemas.ChatSession])
+async def get_chat_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    sessions = await crud.get_chat_sessions(db, current_user.id)
+    for session in sessions:
+        session.messages = await crud.get_chat_messages(db, session.id)
+    return sessions
+
+@app.post("/chat/sessions/{session_id}/messages", response_model=schemas.ChatMessage)
+async def create_chat_message(
+    session_id: int,
+    message: schemas.ChatMessageCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    # Verify session belongs to user
+    sessions = await crud.get_chat_sessions(db, current_user.id)
+    if not any(s.id == session_id for s in sessions):
+        raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        
+    return await crud.create_chat_message(db, session_id, message)
+
+# ---- ALERT ENDPOINTS ----
+
+@app.post("/alerts", response_model=schemas.Alert)
+async def create_alert(
+    alert: schemas.AlertCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    return await crud.create_alert(db, current_user.id, alert)
+
+@app.get("/alerts", response_model=List[schemas.Alert])
+async def get_alerts(
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    return await crud.get_alerts(db, current_user.id)
+
+@app.delete("/alerts/{alert_id}")
+async def delete_alert(
+    alert_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    deleted = await crud.delete_alert(db, alert_id, current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"status": "ok"}
+
 
 @app.post("/news/fetch")
 async def trigger_news_fetch(

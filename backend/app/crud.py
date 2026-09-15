@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.sql import func
 from . import models, schemas
 import yfinance as yf
 import asyncio
@@ -73,3 +74,52 @@ async def update_live_prices(db: AsyncSession, holdings: list):
         await db.commit()
         
     return holdings
+
+async def create_chat_session(db: AsyncSession, user_id: int, title: str = None):
+    db_session = models.ChatSession(user_id=user_id, title=title)
+    db.add(db_session)
+    await db.commit()
+    await db.refresh(db_session)
+    return db_session
+
+async def get_chat_sessions(db: AsyncSession, user_id: int):
+    result = await db.execute(select(models.ChatSession).where(models.ChatSession.user_id == user_id).order_by(models.ChatSession.updated_at.desc()))
+    return result.scalars().all()
+
+async def create_chat_message(db: AsyncSession, session_id: int, message: schemas.ChatMessageCreate):
+    db_message = models.ChatMessage(**message.model_dump(), session_id=session_id)
+    db.add(db_message)
+    
+    # Update session updated_at
+    session_result = await db.execute(select(models.ChatSession).where(models.ChatSession.id == session_id))
+    session = session_result.scalars().first()
+    if session:
+        session.updated_at = func.now()
+        
+    await db.commit()
+    await db.refresh(db_message)
+    return db_message
+
+async def get_chat_messages(db: AsyncSession, session_id: int):
+    result = await db.execute(select(models.ChatMessage).where(models.ChatMessage.session_id == session_id).order_by(models.ChatMessage.created_at.asc()))
+    return result.scalars().all()
+
+async def create_alert(db: AsyncSession, user_id: int, alert: schemas.AlertCreate):
+    db_alert = models.Alert(**alert.model_dump(), user_id=user_id)
+    db.add(db_alert)
+    await db.commit()
+    await db.refresh(db_alert)
+    return db_alert
+
+async def get_alerts(db: AsyncSession, user_id: int):
+    result = await db.execute(select(models.Alert).where(models.Alert.user_id == user_id).order_by(models.Alert.created_at.desc()))
+    return result.scalars().all()
+
+async def delete_alert(db: AsyncSession, alert_id: int, user_id: int):
+    result = await db.execute(select(models.Alert).where(models.Alert.id == alert_id, models.Alert.user_id == user_id))
+    alert = result.scalars().first()
+    if alert:
+        await db.delete(alert)
+        await db.commit()
+        return True
+    return False

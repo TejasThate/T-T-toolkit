@@ -50,3 +50,52 @@ class NewsArticle(NewsArticleBase):
 
     class Config:
         from_attributes = True
+
+class ChatMessageBase(BaseModel):
+    role: str
+    content: str
+
+class ChatMessageCreate(ChatMessageBase):
+    pass
+
+class ChatMessage(ChatMessageBase):
+    id: int
+    session_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class ChatSessionBase(BaseModel):
+    title: Optional[str] = None
+
+class ChatSessionCreate(ChatSessionBase):
+    pass
+
+class ChatSession(ChatSessionBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+    messages: List[ChatMessage] = []
+
+    class Config:
+        from_attributes = True
+
+class AlertBase(BaseModel):
+    symbol: str
+    condition: str
+    target_value: float
+    is_active: int = 1
+
+class AlertCreate(AlertBase):
+    pass
+
+class Alert(AlertBase):
+    id: int
+    user_id: int
+    created_at: datetime
+    triggered_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

@@ -38,6 +38,8 @@ export default function Page() {
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const setHoldings = usePortfolioStore(state => state.setHoldings);
+  const totalValue = usePortfolioStore(state => state.totalValue);
+  const overallPnl = usePortfolioStore(state => state.overallPnl);
   
   // Market Data Hook
   const { data: marketRes, isFetching: marketLoading } = useMarketDataSync();
@@ -466,18 +468,17 @@ export default function Page() {
               <div className="flex flex-col gap-1 mb-4">
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider">Total Value</div>
                 <div className="text-2xl font-mono font-bold text-slate-200">
-                  ₹{usePortfolioStore(s => s.totalValue).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  ₹{totalValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                 </div>
               </div>
               <div className="flex flex-col gap-1 mb-5">
                 <div className="text-[10px] text-slate-400 uppercase tracking-wider">Overall P&L</div>
                 {(() => {
-                  const pnl = usePortfolioStore(s => s.overallPnl);
-                  const isUp = pnl >= 0;
+                  const isUp = overallPnl >= 0;
                   return (
                     <div className={`text-sm font-mono font-bold flex items-center gap-1 ${isUp ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
                       {isUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                      ₹{Math.abs(pnl).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      ₹{Math.abs(overallPnl).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </div>
                   );
                 })()}

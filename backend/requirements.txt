@@ -21,3 +21,7 @@ google-auth
 google-auth-oauthlib
 google-api-python-client
 requests
+pdfplumber
+google-genai
+alembic
+psycopg2-binary

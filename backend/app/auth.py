@@ -41,6 +41,9 @@ def verify_google_token(token: str):
     except ValueError:
         return None
 
+import os
+os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+
 def exchange_google_code(code: str, redirect_uri: str = 'postmessage'):
     client_config = {
         "web": {

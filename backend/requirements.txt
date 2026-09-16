@@ -15,6 +15,7 @@ scipy
 xgboost
 scikit-learn
 passlib[bcrypt]
+bcrypt==3.2.2
 PyJWT
 aiosqlite
 google-auth

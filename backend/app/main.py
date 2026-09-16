@@ -193,7 +193,7 @@ async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depen
         
         if not user:
             import secrets
-            hashed_password = auth.get_password_hash(secrets.token_urlsafe(32))
+            hashed_password = auth.get_password_hash(secrets.token_urlsafe(16))
             user = models.User(email=email, hashed_password=hashed_password)
             db.add(user)
         

@@ -27,11 +27,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    # Database connection test (tables now managed by Alembic)
+    # Database connection test & auto-create tables for SQLite fallback
     try:
         async with engine.begin() as conn:
-            pass
-        print("Successfully connected to the database.")
+            await conn.run_sync(models.Base.metadata.create_all)
+        print("Successfully connected to the database and initialized tables.")
     except Exception as e:
         print(f"Failed to connect to the database on startup: {e}")
         print("The app will still start, but database operations will fail until DATABASE_URL is corrected.")

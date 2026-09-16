@@ -272,6 +272,18 @@ async def delete_user_data(
     
     return {"message": "All sensitive data has been permanently deleted in compliance with DPDP Act."}
 
+@app.get("/api/predict/{symbol}")
+async def get_stock_prediction(
+    symbol: str, 
+    db: AsyncSession = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    from app.services import prediction_service
+    prediction = await prediction_service.predict_stock_price(symbol.upper())
+    if "error" in prediction:
+        raise HTTPException(status_code=400, detail=prediction["error"])
+    return prediction
+
 @app.get("/auth/me")
 async def get_me(
     db: AsyncSession = Depends(get_db),

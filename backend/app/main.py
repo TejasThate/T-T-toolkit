@@ -350,7 +350,7 @@ async def upload_portfolio(
             
     return {"message": f"Successfully uploaded {len(holdings_created)} holdings."}
 
-@app.get("/portfolio", response_model=List[schemas.Holding])
+@app.get("/api/portfolio", response_model=List[schemas.Holding])
 async def get_portfolio(
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)

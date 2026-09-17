@@ -44,7 +44,7 @@ export default function TerminalChatPage() {
       
       setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
     } catch (err: any) {
-      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err.message}. Ensure your GEMINI_API_KEY is configured on the backend.` }]);
+      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err.message}. Ensure your GROQ_API_KEY is configured on the backend.` }]);
     } finally {
       setIsChatLoading(false);
     }

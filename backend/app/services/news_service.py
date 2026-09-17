@@ -10,7 +10,7 @@ NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 async def fetch_financial_news(query: str = "Indian stock market OR NSE OR BSE", limit: int = 10) -> List[Dict]:
     """
-    Fetches latest financial news using NewsAPI and tags each with a sentiment using Gemini.
+    Fetches latest financial news using NewsAPI and tags each with a sentiment using Groq.
     """
     if not NEWS_API_KEY:
         logger.warning("NEWS_API_KEY is not set. Returning empty news.")

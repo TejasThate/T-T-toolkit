@@ -5,6 +5,7 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { useAuthStore } from "../store/useAuthStore";
 import DashboardLayout from "./DashboardLayout";
+import { BrandLogo } from "./BrandLogo";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -47,13 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-[#0e0f12] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
         <div className="z-10 max-w-md text-center space-y-8">
           <div className="flex justify-center mb-4">
-            <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
-              <rect x="20" y="25" width="15" height="40" rx="4" fill="#6C5CE7" />
-              <rect x="55" y="35" width="35" height="15" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
-              <rect x="65" y="50" width="15" height="40" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
-              <circle cx="50" cy="50" r="40" stroke="white" strokeOpacity="0.1" strokeWidth="2" />
-            </svg>
+            <BrandLogo size="lg" />
           </div>
           <h1 className="text-5xl font-bold tracking-tight">
             <span className="text-white">T&T Toolkit</span>

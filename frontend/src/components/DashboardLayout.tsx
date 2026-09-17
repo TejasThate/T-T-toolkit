@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Bot, Terminal, TrendingUp, Filter, Newspaper, Bell, LayoutDashboard, Brain, PieChart, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BrandLogo } from "./BrandLogo";
 import { useMarketDataSync } from "../hooks/useMarketDataSync";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -135,12 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* LEFT SIDEBAR (Nav) */}
       <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl flex flex-col z-10 hidden md:flex">
         <div className="p-6 flex items-center gap-3 border-b border-white/5">
-          <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="10" y="10" width="35" height="15" rx="4" fill="#6C5CE7" />
-            <rect x="20" y="25" width="15" height="40" rx="4" fill="#6C5CE7" />
-            <rect x="55" y="35" width="35" height="15" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
-            <rect x="65" y="50" width="15" height="40" rx="4" fill="#6C5CE7" fillOpacity="0.7" />
-          </svg>
+          <BrandLogo size="sm" />
           <span className="font-bold text-lg tracking-tight">T&T Toolkit</span>
         </div>
         

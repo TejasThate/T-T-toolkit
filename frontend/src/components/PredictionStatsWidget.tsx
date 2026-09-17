@@ -10,6 +10,8 @@ interface PredictionStats {
   retrain_status: string;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export function PredictionStatsWidget() {
   const [stats, setStats] = useState<PredictionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -17,8 +19,10 @@ export function PredictionStatsWidget() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Direct call, no auth required as per backend
-        const res = await fetch("/api/market/prediction-stats");
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE}/api/market/prediction-stats`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         if (res.ok) {
           const data = await res.json();
           setStats(data);

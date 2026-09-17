@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { usePortfolioStore } from '../store/usePortfolioStore';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export function useMarketDataSync() {
   const updateMarketPrices = usePortfolioStore((state) => state.updateMarketPrices);
 
@@ -11,7 +13,7 @@ export function useMarketDataSync() {
       const token = localStorage.getItem("token");
       if (!token) return {};
       
-      const response = await fetch('/api/market/quotes?symbols=HDFCBANK,TCS,INFY,RELIANCE', {
+      const response = await fetch(`${API_BASE}/api/market/quotes?symbols=HDFCBANK,TCS,INFY,RELIANCE`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!response.ok) {

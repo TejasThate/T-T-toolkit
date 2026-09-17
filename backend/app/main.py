@@ -27,14 +27,29 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    # Database connection test & auto-create tables for SQLite fallback
+    import os
+    print("--- STARTUP DIAGNOSTICS ---")
+    
+    # Check Database
     try:
         async with engine.begin() as conn:
             await conn.run_sync(models.Base.metadata.create_all)
-        print("Successfully connected to the database and initialized tables.")
+        print("[OK] Connected to database and initialized tables.")
     except Exception as e:
-        print(f"Failed to connect to the database on startup: {e}")
-        print("The app will still start, but database operations will fail until DATABASE_URL is corrected.")
+        print(f"[ERROR] Database connection failed: {e}")
+        
+    # Check Environment Variables
+    if not os.getenv("GROQ_API_KEY"):
+        print("[WARNING] GROQ_API_KEY is missing. AI features will use mocked responses.")
+    else:
+        print("[OK] GROQ_API_KEY is set.")
+        
+    if not os.getenv("GOOGLE_CLIENT_ID") or not os.getenv("GOOGLE_CLIENT_SECRET"):
+        print("[WARNING] GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing. Gmail Sync and Google Login will fail.")
+    else:
+        print("[OK] Google OAuth credentials are set.")
+        
+    print("---------------------------")
 
 @app.get("/")
 def read_root():
@@ -506,6 +521,31 @@ async def sync_portfolio_gmail(
         # In a real system, you'd use Fernet to decrypt `current_user.encrypted_pan`
         pan = current_user.encrypted_pan
         
+        # Mock Fallback if Google OAuth is not configured
+        import os
+        if not os.getenv("GOOGLE_CLIENT_ID"):
+            print("GOOGLE_CLIENT_ID missing. Using mock portfolio data for sync.")
+            await db.execute(delete(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+            
+            mock_holdings = [
+                {"symbol": "HDFCBANK", "quantity": 100, "avg_price": 1450.0},
+                {"symbol": "TCS", "quantity": 50, "avg_price": 3800.0},
+                {"symbol": "INFY", "quantity": 150, "avg_price": 1400.0},
+                {"symbol": "RELIANCE", "quantity": 75, "avg_price": 2800.0}
+            ]
+            
+            for h in mock_holdings:
+                new_holding = models.PortfolioHolding(
+                    user_id=current_user.id,
+                    symbol=h["symbol"],
+                    quantity=h["quantity"],
+                    average_price=h["avg_price"]
+                )
+                db.add(new_holding)
+                
+            await db.commit()
+            return {"message": "Google OAuth is not configured. Mock portfolio loaded successfully!"}
+            
         # 1. Fetch PDF from Gmail
         pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(request.google_access_token)
         
@@ -515,8 +555,7 @@ async def sync_portfolio_gmail(
         if not holdings_list:
             raise HTTPException(status_code=400, detail="Successfully parsed PDF but found no valid holdings.")
             
-        # 3. Save to DB (Clear old holdings first for a fresh sync, or implement upsert)
-        # For prototype, we will clear existing and insert new
+        # 3. Save to DB
         await db.execute(delete(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
         
         new_holdings = []
@@ -537,7 +576,8 @@ async def sync_portfolio_gmail(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="An unexpected error occurred during sync.")
+        print(f"Sync error details: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during sync. Check server logs.")
 
 # ---- AI ENDPOINTS ----
 
@@ -601,6 +641,28 @@ async def get_ai_forecast(
         market_context=market_context
     )
     return {"forecast": forecast_text}
+
+@app.get("/api/health")
+async def health_check(db: AsyncSession = Depends(get_db)):
+    import os
+    
+    # Check DB Connection
+    db_status = "ok"
+    try:
+        await db.execute(select(models.User).limit(1))
+    except Exception as e:
+        db_status = f"error: {e}"
+        
+    return {
+        "status": "online",
+        "database": db_status,
+        "environment": {
+            "GROQ_API_KEY_CONFIGURED": bool(os.getenv("GROQ_API_KEY")),
+            "GOOGLE_CLIENT_ID_CONFIGURED": bool(os.getenv("GOOGLE_CLIENT_ID")),
+            "GOOGLE_CLIENT_SECRET_CONFIGURED": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
+            "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite (default)")[:15] + "..." if os.getenv("DATABASE_URL") else "sqlite (default)"
+        }
+    }
 
 @app.get("/api/news")
 async def get_top_news(

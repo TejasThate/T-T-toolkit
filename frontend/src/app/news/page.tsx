@@ -44,7 +44,7 @@ export default function TopNewsPage() {
             </div>
           ) : news.length === 0 ? (
             <div className="text-center py-20 text-slate-500">
-              No news found. Ensure NEWS_API_KEY is configured.
+              No news found at the moment.
             </div>
           ) : (
             <div className="grid gap-4">

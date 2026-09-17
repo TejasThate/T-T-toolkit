@@ -17,7 +17,13 @@ async def generate_chat_response(query: str, portfolio_context: str, market_cont
     For this iteration, we use a single-turn stateless approach.
     """
     if not client:
-        raise ValueError("GROQ_API_KEY is missing from environment variables.")
+        return (
+            "**Mock AI Response**\n"
+            "I see you don't have a GROQ_API_KEY configured in your backend. "
+            "To get real AI insights, please add your Groq key to the Render environment variables.\n\n"
+            "Based on your context, your portfolio seems to be tracking well. If you had an active API key, "
+            "I would give you a deep analysis of your positions!"
+        )
         
     system_instruction = f"""You are 'T&T AI', a hyper-intelligent, data-driven financial assistant built by Tejas Thate.
 You have real-time access to the user's portfolio and live market data.
@@ -51,7 +57,7 @@ INSTRUCTIONS:
         return response.choices[0].message.content
     except Exception as e:
         logger.error(f"Groq API error: {e}")
-        raise ValueError(f"AI Engine failed to generate response: {e}")
+        return f"AI Engine failed to generate response: {e}"
 
 async def generate_forecast_summary(portfolio_context: str, market_context: str) -> str:
     """

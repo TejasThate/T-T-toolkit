@@ -6,6 +6,12 @@ import { useAuthStore } from "../store/useAuthStore";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import dynamic from 'next/dynamic';
+
+const TerminalBackground = dynamic(() => import('../components/TerminalBackground'), {
+  ssr: false,
+});
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function TerminalChatPage() {
@@ -62,7 +68,9 @@ export default function TerminalChatPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#0e0f12]">
+    <div className="flex-1 flex flex-col h-full bg-[#0e0f12] relative overflow-hidden">
+      <TerminalBackground />
+
       {/* Header */}
       <header className="h-16 flex-shrink-0 border-b border-white/5 flex items-center px-6 bg-[#0e0f12]/80 backdrop-blur-xl z-20">
         <h1 className="font-semibold text-lg tracking-tight flex items-center gap-2">

@@ -13,10 +13,9 @@ export default function TerminalBackground() {
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     setReducedMotion(motionQuery.matches);
     
-    // 2. Check for low-end devices (<=4 cores on mobile is a good proxy)
-    const hardwareConcurrency = navigator.hardwareConcurrency || 4;
+    // 2. Remove strict hardware check, only fallback on extreme low-end mobile
     const isMobile = window.innerWidth < 768;
-    if (hardwareConcurrency <= 4 && isMobile) {
+    if (isMobile && (navigator.hardwareConcurrency || 4) <= 2) {
       setIsLowEnd(true);
     }
   }, []);
@@ -50,9 +49,9 @@ export default function TerminalBackground() {
         this.x = Math.random() * canvas.width;
         this.y = Math.random() * canvas.height;
         // Very slow drifting velocity
-        this.vx = (Math.random() - 0.5) * 0.4; 
-        this.vy = (Math.random() - 0.5) * 0.4;
-        this.radius = Math.random() * 1.5 + 0.5;
+        this.vx = (Math.random() - 0.5) * 0.8; // Faster drift
+        this.vy = (Math.random() - 0.5) * 0.8;
+        this.radius = Math.random() * 2.5 + 1.0; // Larger dots
       }
 
       update() {
@@ -68,15 +67,15 @@ export default function TerminalBackground() {
         if (!ctx) return;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(108, 92, 231, 0.4)'; // #6C5CE7
+        ctx.fillStyle = 'rgba(108, 92, 231, 0.8)'; // Much brighter #6C5CE7
         ctx.fill();
       }
     }
 
     const initParticles = () => {
       particles = [];
-      // Dynamic particle density capped at 150 to prevent jank
-      const particleCount = Math.min(Math.floor((canvas.width * canvas.height) / 12000), 150); 
+      // Dynamic particle density capped at 200
+      const particleCount = Math.min(Math.floor((canvas.width * canvas.height) / 9000), 200); 
       for (let i = 0; i < particleCount; i++) {
         particles.push(new Particle());
       }
@@ -90,13 +89,13 @@ export default function TerminalBackground() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           // Only connect close particles
-          if (distance < 120) {
+          if (distance < 140) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
             // Opacity scales with distance seamlessly
-            const opacity = 1 - (distance / 120);
-            ctx.strokeStyle = `rgba(162, 155, 254, ${opacity * 0.15})`; // #A29BFE
+            const opacity = 1 - (distance / 140);
+            ctx.strokeStyle = `rgba(162, 155, 254, ${opacity * 0.35})`; // Much brighter lines
             ctx.stroke();
           }
         }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuthStore } from "../store/useAuthStore";
 import DashboardLayout from "./DashboardLayout";
 import { BrandLogo } from "./BrandLogo";
+import { FloatingPerks } from "./FloatingPerks";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -46,6 +47,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (!started) {
     return (
       <div className="min-h-screen bg-[#0e0f12] flex flex-col justify-center items-center text-slate-100 p-8 relative overflow-hidden">
+        <FloatingPerks />
         <div className="z-10 max-w-md text-center space-y-8">
           <div className="flex justify-center mb-4">
             <BrandLogo size="lg" />

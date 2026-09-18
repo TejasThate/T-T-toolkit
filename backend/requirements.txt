@@ -26,3 +26,5 @@ pdfplumber
 google-genai
 alembic
 psycopg2-binary
+apscheduler
+redis

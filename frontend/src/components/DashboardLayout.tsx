@@ -49,19 +49,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     enabled: !!token
   });
 
-  // Top Gainers Query
-  const { data: topGainers = [], isFetching: gainersLoading } = useQuery({
-    queryKey: ['topGainers'],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/market/top-gainers?limit=5`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Top gainers fetch failed');
-      return res.json();
-    },
-    enabled: !!token,
-    refetchInterval: 60 * 1000
-  });
+  // Market Data Hook (WebSocket)
+  const { data: marketRes, isFetching: marketLoading } = useMarketDataSync();
+  const marketData = marketRes || {};
+  const topGainers = marketRes?.gainers || [];
+  const gainersLoading = marketLoading;
 
   // AI Forecast Query
   const { data: aiForecast, isFetching: forecastLoading } = useQuery({
@@ -77,9 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     refetchInterval: 5 * 60 * 1000 
   });
 
-  // Market Data Hook
-  const { data: marketRes, isFetching: marketLoading } = useMarketDataSync();
-  const marketData = marketRes || {};
+  // Market Data Hook is already defined above
 
   const syncGmail = useGoogleLogin({
     scope: 'https://www.googleapis.com/auth/gmail.readonly',

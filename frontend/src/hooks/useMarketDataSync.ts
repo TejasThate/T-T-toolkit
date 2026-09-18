@@ -1,42 +1,72 @@
-import { useQuery } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePortfolioStore } from '../store/usePortfolioStore';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, 'ws');
 
 export function useMarketDataSync() {
   const updateMarketPrices = usePortfolioStore((state) => state.updateMarketPrices);
-
-  const { data, error, isFetching } = useQuery({
-    queryKey: ['marketData'],
-    queryFn: async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return {};
-      
-      const response = await fetch(`${API_BASE}/api/market/quotes?symbols=HDFCBANK,TCS,INFY,RELIANCE`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return response.json();
-    },
-    // Poll every 60 seconds to avoid yfinance rate limits
-    refetchInterval: 60 * 1000,
-    refetchIntervalInBackground: true,
-  });
+  const [data, setData] = useState<any>({});
+  const [isFetching, setIsFetching] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (data) {
-      // Map market data to a Record<string, number>
-      const prices: Record<string, number> = {};
-      Object.keys(data).forEach(symbol => {
-        prices[symbol] = data[symbol].price;
-      });
-      
-      updateMarketPrices(prices);
-    }
-  }, [data, updateMarketPrices]);
+    let ws: WebSocket;
+    let isMounted = true;
+    let reconnectTimeout: NodeJS.Timeout;
+
+    const connect = () => {
+      ws = new WebSocket(`${WS_BASE}/ws/market`);
+
+      ws.onopen = () => {
+        if (isMounted) {
+          setIsFetching(false);
+          setError(null);
+        }
+      };
+
+      ws.onmessage = (event) => {
+        if (!isMounted) return;
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'market_update') {
+            setData(payload);
+            
+            // Map market data to a Record<string, number> for portfolio
+            if (payload.quotes) {
+              const prices: Record<string, number> = {};
+              Object.keys(payload.quotes).forEach(symbol => {
+                prices[symbol] = payload.quotes[symbol].ltp;
+              });
+              updateMarketPrices(prices);
+            }
+          }
+        } catch (err: any) {
+          console.error("Failed to parse market update", err);
+        }
+      };
+
+      ws.onerror = (e) => {
+        console.error("WebSocket error", e);
+        if (isMounted) setError(new Error("WebSocket error"));
+      };
+
+      ws.onclose = () => {
+        if (isMounted) {
+          setIsFetching(true);
+          // Try to reconnect in 5 seconds
+          reconnectTimeout = setTimeout(connect, 5000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
+    };
+  }, [updateMarketPrices]);
 
   return { data, error, isFetching };
 }

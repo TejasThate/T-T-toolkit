@@ -50,14 +50,62 @@ async def startup():
         print("[OK] Google OAuth credentials are set.")
         
     print("---------------------------")
+    
+    # Initialize WebSocket Manager Redis Listener
+    from app.websocket_manager import manager
+    import asyncio
+    asyncio.create_task(manager.redis_listener())
+
+    # Initialize APScheduler for Market Data Polling (Phase 1)
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from app.services.mock_market_data import MockMarketDataProvider
+    import json
+    
+    provider = MockMarketDataProvider()
+    
+    async def poll_market_data():
+        try:
+            indices = ["NIFTY 50", "SENSEX"]
+            index_data = [await provider.get_index_data(idx) for idx in indices]
+            gainers = await provider.get_top_gainers(5)
+            losers = await provider.get_top_losers(5)
+            quotes = await provider.get_live_quotes(["RELIANCE", "TCS", "HDFCBANK", "INFY"])
+            
+            payload = {
+                "type": "market_update",
+                "indices": index_data,
+                "gainers": gainers,
+                "losers": losers,
+                "quotes": quotes
+            }
+            # Broadcast to websocket via Redis pub/sub relay
+            await manager.broadcast(json.dumps(payload), channel="market:updates")
+            print(f"[POLL] Broadcasted live market data: {len(quotes)} quotes")
+        except Exception as e:
+            print(f"[ERROR] Polling market data failed: {e}")
+            
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(poll_market_data, 'interval', seconds=10)
+    scheduler.start()
+    print("[OK] Started APScheduler for market data polling.")
 
 @app.get("/")
 def read_root():
     return {"message": "T&T Toolkit API is running. Try /docs for API documentation."}
 
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
+from fastapi import WebSocket, WebSocketDisconnect
+from app.websocket_manager import manager
+
+@app.websocket("/ws/market")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # We don't expect the client to send much, but keep the connection open
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
 
 @app.get("/models")
 async def list_models():

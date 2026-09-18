@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, ArrowDownRight, Clock, Info, ShieldCheck, Building, IndianRupee } from "lucide-react";
+import { ArrowUpRight, Clock, Info, ShieldCheck, IndianRupee } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";

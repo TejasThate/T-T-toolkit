@@ -270,6 +270,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="space-y-3">
               {Object.keys(marketData).length > 0 ? (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 Object.entries(marketData).map(([symbol, item]: [string, any]) => {
                   if (symbol === "type" || symbol === "quotes" || symbol === "indices" || symbol === "gainers" || symbol === "losers") return null;
                   const isUp = item?.change_pct >= 0;
@@ -305,6 +306,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="space-y-3">
               {Array.isArray(topGainers) && topGainers.length > 0 ? (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 topGainers.map((item: any) => {
                   return (
                     <div key={item.symbol} className="bg-[#141824] border border-[#22C55E]/10 rounded-xl p-3 flex justify-between items-center group hover:border-[#22C55E]/30 transition-colors">

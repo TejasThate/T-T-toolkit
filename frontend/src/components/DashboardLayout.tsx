@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../store/useAuthStore";
-import { useGoogleLogin } from "@react-oauth/google";
 import { toast } from "sonner";
 import { Bot, Terminal, TrendingUp, Filter, Newspaper, Bell, LayoutDashboard, Brain, PieChart, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
@@ -16,8 +15,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, logout } = useAuthStore();
   const pathname = usePathname();
-  
-  const [isGmailConsentOpen, setIsGmailConsentOpen] = useState(false);
 
   // Auth Query
   const { data: userProfile, refetch: refetchProfile } = useQuery({
@@ -70,33 +67,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   });
 
   // Market Data Hook is already defined above
-
-  const syncGmail = useGoogleLogin({
-    scope: 'https://www.googleapis.com/auth/gmail.readonly',
-    onSuccess: async tokenResponse => {
-      try {
-        toast.info("Scanning Gmail for CAS statements...");
-        const res = await fetch(`${API_BASE}/api/portfolio/sync`, {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}` 
-          },
-          body: JSON.stringify({ google_access_token: tokenResponse.access_token })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Gmail Sync failed");
-        toast.success(data.message);
-        setIsGmailConsentOpen(false);
-        refetchPortfolio();
-      } catch (e: any) {
-        toast.error(`Error: ${e.message}`);
-      }
-    },
-    onError: () => toast.error("Gmail Sync Failed")
-  });
-
-  // Calculate Portfolio P&L
   let totalPortfolioValue = 0;
   let overallPnl = 0;
   
@@ -224,13 +194,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
               
               <button
-                onClick={() => setIsGmailConsentOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors text-sm font-medium text-slate-300"
+                onClick={() => window.location.href = `${API_BASE}/api/broker/login?provider=upstox`}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#8B5CF6]/30 bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 transition-colors text-sm font-medium text-[#8B5CF6]"
               >
-                <div className="w-4 h-4 rounded bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center">
-                  <span className="text-[8px] text-white font-bold">G</span>
+                <div className="w-4 h-4 rounded bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center">
+                  <span className="text-[8px] text-white font-bold">U</span>
                 </div>
-                Sync via Gmail
+                Connect Upstox
               </button>
             </div>
           </section>
@@ -325,42 +295,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Gmail Consent Modal */}
-      {isGmailConsentOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1a1d27] border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
-            <button 
-              onClick={() => setIsGmailConsentOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white"
-            >
-              ✕
-            </button>
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-red-500/10 text-red-500 mb-4">
-              <div className="w-6 h-6 rounded bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center">
-                <span className="text-xs text-white font-bold">G</span>
-              </div>
-            </div>
-            <h2 className="text-xl font-bold text-white mb-2">Connect Gmail</h2>
-            <p className="text-sm text-slate-400 mb-6">
-              T&T Toolkit needs read-only access to your Gmail to securely scan for NSDL/CDSL CAS PDFs and sync your portfolio.
-            </p>
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setIsGmailConsentOpen(false)}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-slate-300 hover:bg-white/5 transition-colors font-medium text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => syncGmail()}
-                className="flex-1 py-3 rounded-xl bg-white text-black hover:bg-slate-200 transition-colors font-bold text-sm"
-              >
-                Allow Access
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

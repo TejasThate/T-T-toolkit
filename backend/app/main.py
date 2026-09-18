@@ -590,7 +590,7 @@ async def sync_portfolio_gmail(
         import os
         if not os.getenv("GOOGLE_CLIENT_ID"):
             print("GOOGLE_CLIENT_ID missing. Using mock portfolio data for sync.")
-            await db.execute(delete(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+            await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
             
             mock_holdings = [
                 {"symbol": "HDFCBANK", "quantity": 100, "avg_price": 1450.0},
@@ -600,7 +600,7 @@ async def sync_portfolio_gmail(
             ]
             
             for h in mock_holdings:
-                new_holding = models.PortfolioHolding(
+                new_holding = models.Holding(
                     user_id=current_user.id,
                     symbol=h["symbol"],
                     quantity=h["quantity"],
@@ -621,11 +621,11 @@ async def sync_portfolio_gmail(
             raise HTTPException(status_code=400, detail="Successfully parsed PDF but found no valid holdings.")
             
         # 3. Save to DB
-        await db.execute(delete(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+        await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
         
         new_holdings = []
         for h in holdings_list:
-            new_holding = models.PortfolioHolding(
+            new_holding = models.Holding(
                 user_id=current_user.id,
                 symbol=h["symbol"],
                 quantity=h["quantity"],
@@ -651,7 +651,7 @@ class ChatRequest(BaseModel):
 
 async def _build_ai_contexts(current_user: models.User, db: AsyncSession):
     # 1. Fetch Portfolio
-    result = await db.execute(select(models.PortfolioHolding).where(models.PortfolioHolding.user_id == current_user.id))
+    result = await db.execute(select(models.Holding).where(models.Holding.user_id == current_user.id))
     holdings = result.scalars().all()
     
     if not holdings:
@@ -742,3 +742,109 @@ async def get_top_news(
         return articles
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch news: {e}")
+
+# ---- BROKER INTEGRATION ENDPOINTS ----
+
+from app.services.broker_service import get_broker_adapter
+from fastapi.responses import RedirectResponse
+
+@app.get("/api/broker/login")
+async def broker_login(
+    provider: str = "upstox",
+):
+    """Redirects the user to the broker's OAuth login page."""
+    try:
+        adapter = get_broker_adapter(provider)
+        login_url = adapter.get_login_url()
+        return RedirectResponse(url=login_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/broker/callback")
+async def broker_callback(
+    code: str,
+    provider: str = "upstox",
+    db: AsyncSession = Depends(get_db),
+    # In a real app we'd pass a state token to identify the user
+    # For now, we'll just mock this and assume it's for user ID 1
+):
+    """Exchanges the auth code for an access token."""
+    try:
+        adapter = get_broker_adapter(provider)
+        access_token = adapter.get_access_token(code)
+        
+        # Save token to db
+        user_id = 1 # hardcoded for prototype simplicity since redirect loses auth headers
+        
+        # Delete old token
+        await db.execute(delete(models.OAuthToken).where(models.OAuthToken.user_id == user_id, models.OAuthToken.provider == provider))
+        
+        new_token = models.OAuthToken(
+            user_id=user_id,
+            provider=provider,
+            access_token=access_token
+        )
+        db.add(new_token)
+        
+        # Auto-sync portfolio immediately
+        holdings_list = adapter.get_holdings(access_token)
+        await db.execute(delete(models.Holding).where(models.Holding.user_id == user_id))
+        
+        for h in holdings_list:
+            new_holding = models.Holding(
+                user_id=user_id,
+                symbol=h["symbol"],
+                company_name=h["company_name"],
+                quantity=h["quantity"],
+                average_price=h["average_price"]
+            )
+            db.add(new_holding)
+            
+        await db.commit()
+        
+        # Redirect back to frontend dashboard
+        import os
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        return RedirectResponse(url=f"{frontend_url}/?broker_sync=success")
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Broker auth failed: {e}")
+
+@app.post("/api/portfolio/sync_broker")
+async def sync_portfolio_broker(
+    provider: str = "upstox",
+    current_user: models.User = Depends(auth.get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetches real portfolio holdings from the broker API and updates the DB."""
+    try:
+        # Get active token
+        result = await db.execute(select(models.OAuthToken).where(models.OAuthToken.user_id == current_user.id, models.OAuthToken.provider == provider))
+        token_obj = result.scalars().first()
+        
+        if not token_obj:
+            raise HTTPException(status_code=400, detail=f"Please connect your {provider} account first.")
+            
+        adapter = get_broker_adapter(provider)
+        holdings_list = adapter.get_holdings(token_obj.access_token)
+        
+        # Save to DB
+        await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
+        
+        new_holdings = []
+        for h in holdings_list:
+            new_holding = models.Holding(
+                user_id=current_user.id,
+                symbol=h["symbol"],
+                company_name=h["company_name"],
+                quantity=h["quantity"],
+                average_price=h["average_price"]
+            )
+            db.add(new_holding)
+            new_holdings.append(new_holding)
+            
+        await db.commit()
+        return {"message": f"Successfully synced {len(new_holdings)} holdings from {provider}!"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")

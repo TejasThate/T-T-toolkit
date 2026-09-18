@@ -291,7 +291,7 @@ export default function PortfolioPage() {
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: number) => `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                          formatter={(value: any) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
                           contentStyle={{ backgroundColor: '#1a1b23', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                           itemStyle={{ color: '#fff' }}
                         />

@@ -131,11 +131,22 @@ async def startup():
         except Exception as e:
             print(f"[ERROR] Screener update failed: {e}")
             
+    async def run_news_pipeline_job():
+        try:
+            from app.services.news_pipeline import run_news_pipeline
+            await run_news_pipeline()
+        except Exception as e:
+            print(f"[ERROR] News pipeline failed: {e}")
+            
     scheduler = AsyncIOScheduler()
     scheduler.add_job(poll_market_data, 'interval', seconds=10)
     # Run screener once on startup, then daily at midnight
     scheduler.add_job(run_daily_screener, 'date') # Runs immediately
     scheduler.add_job(run_daily_screener, 'cron', hour=0, minute=0)
+    # Run news pipeline once on startup, then every hour
+    scheduler.add_job(run_news_pipeline_job, 'date')
+    scheduler.add_job(run_news_pipeline_job, 'interval', hours=1)
+    
     scheduler.start()
     print("[OK] Started APScheduler for market data and screeners.")
 
@@ -156,6 +167,25 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 from app.services.screener_service import get_active_signals
+
+@app.get("/api/news")
+async def get_news(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(models.NewsArticle).order_by(models.NewsArticle.published_at.desc()).limit(20))
+    news = result.scalars().all()
+    
+    news_list = []
+    for n in news:
+        news_list.append({
+            "id": n.id,
+            "title": n.title,
+            "link": n.link,
+            "source": n.source,
+            "published_at": n.published_at,
+            "affected_symbol": n.affected_symbol,
+            "impact_score": n.impact_score,
+            "impact_reason": n.impact_reason
+        })
+    return {"news": news_list}
 
 @app.get("/api/screener/signals")
 async def get_screener_signals(db: AsyncSession = Depends(get_db)):
@@ -722,11 +752,11 @@ async def chat_with_ai(
     
     # 4. Generate AI Response
     try:
+        # Convert single query to list of dicts for new Multi-Agent signature
+        messages = [{"role": "user", "content": request.message}]
         response_text = await ai_service.generate_chat_response(
-            query=request.message,
-            portfolio_context=portfolio_context,
-            market_context=market_context,
-            gainers_context=gainers_context
+            messages=messages,
+            db=db
         )
         return {"response": response_text}
     except ValueError as e:

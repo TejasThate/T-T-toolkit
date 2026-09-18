@@ -12,7 +12,9 @@ async def fetch_financial_news(query: str = "Indian stock market OR NSE OR BSE",
     Fetches latest financial news using Google News RSS (no API key required)
     and tags each with a sentiment using Groq.
     """
-    url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+    import urllib.parse
+    encoded_query = urllib.parse.quote(query)
+    url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-IN&gl=IN&ceid=IN:en"
 
     try:
         # feedparser.parse is blocking, so run it in a thread

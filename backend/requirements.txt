@@ -28,3 +28,6 @@ alembic
 psycopg2-binary
 apscheduler
 redis
+beautifulsoup4
+langchain
+langchain-groq

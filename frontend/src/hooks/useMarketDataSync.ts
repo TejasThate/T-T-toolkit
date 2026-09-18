@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePortfolioStore } from '../store/usePortfolioStore';
+import { toast } from 'sonner';
 
 const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, 'ws');
 
@@ -28,6 +29,17 @@ export function useMarketDataSync() {
         if (!isMounted) return;
         try {
           const payload = JSON.parse(event.data);
+          
+          // Phase 5: Handle Alert Triggered
+          if (payload.type === 'alert_triggered') {
+            const msg = `${payload.symbol} has crossed your alert target of ₹${payload.target_value}!`;
+            toast.success(`🚨 Alert Triggered!`, {
+              description: msg,
+              duration: 10000,
+            });
+            return;
+          }
+          
           if (payload.type === 'market_update') {
             setData(payload);
             

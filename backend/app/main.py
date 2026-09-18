@@ -81,6 +81,45 @@ async def startup():
             }
             # Broadcast to websocket via Redis pub/sub relay
             await manager.broadcast(json.dumps(payload), channel="market:updates")
+            
+            # --- PHASE 5: ALERT EVALUATION ---
+            from app.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as session:
+                # Get all active alerts
+                result = await session.execute(select(models.Alert).where(models.Alert.is_active == 1))
+                active_alerts = result.scalars().all()
+                
+                for alert in active_alerts:
+                    # If we have a quote for this symbol
+                    if alert.symbol in quotes:
+                        current_price = quotes[alert.symbol]["price"]
+                        triggered = False
+                        
+                        if alert.condition == "price_above" and current_price >= alert.target_value:
+                            triggered = True
+                        elif alert.condition == "price_below" and current_price <= alert.target_value:
+                            triggered = True
+                            
+                        if triggered:
+                            # 1. Update DB (Deactivate and set triggered_at)
+                            alert.is_active = 0
+                            from sqlalchemy.sql import func
+                            alert.triggered_at = func.now()
+                            await session.commit()
+                            
+                            # 2. Push WebSocket Notification specifically for this user
+                            alert_payload = {
+                                "type": "alert_triggered",
+                                "user_id": alert.user_id,
+                                "alert_id": alert.id,
+                                "symbol": alert.symbol,
+                                "condition": alert.condition,
+                                "target_value": alert.target_value,
+                                "triggered_price": current_price
+                            }
+                            # Send to Redis pubsub so the worker holding the user's socket can relay it
+                            await manager.broadcast(json.dumps(alert_payload), channel="market:updates")
+
         except Exception as e:
             print(f"[ERROR] Polling market data failed: {e}")
             

@@ -5,8 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/useAuthStore';
 import { toast } from 'sonner';
 import { Bell, Trash2, Plus, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
-import AppShell from '../../components/AppShell';
-
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function AlertsPage() {
@@ -79,7 +77,6 @@ export default function AlertsPage() {
   };
 
   return (
-    <AppShell>
       <div className="max-w-4xl mx-auto space-y-8 pb-12">
         <header>
           <div className="flex items-center gap-3 mb-2">
@@ -202,6 +199,5 @@ export default function AlertsPage() {
           )}
         </div>
       </div>
-    </AppShell>
   );
 }

@@ -29,7 +29,7 @@ async def run_news_pipeline():
         print("[News Pipeline] GROQ_API_KEY missing. Skipping AI scoring.")
         return
         
-    llm = ChatGroq(model="llama3-70b-8192", temperature=0.1, max_tokens=1024, api_key=groq_api_key)
+    llm = ChatGroq(model="llama-3.1-70b-versatile", temperature=0.1, max_tokens=1024, api_key=groq_api_key)
     structured_llm = llm.with_structured_output(NewsAnalysis)
     
     async with SessionLocal() as session:

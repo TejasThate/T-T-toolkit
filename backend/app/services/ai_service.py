@@ -14,7 +14,7 @@ class RouterDecision(BaseModel):
     agent: str = Field(description="The agent to handle the query. Options: 'technical', 'fundamental', 'risk', 'general'")
 
 def get_llm():
-    return ChatGroq(model="llama3-70b-8192", temperature=0.2, max_tokens=1024, api_key=os.getenv("GROQ_API_KEY"))
+    return ChatGroq(model="llama-3.1-70b-versatile", temperature=0.2, max_tokens=1024, api_key=os.getenv("GROQ_API_KEY"))
 
 async def call_technical_agent(query: str, db: AsyncSession) -> str:
     context = "We have access to DailyBars and ComputedSignals. For now, tell the user the Technical Agent is active and sees bullish patterns on NIFTY."

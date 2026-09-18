@@ -15,6 +15,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const login = useGoogleLogin({
     flow: 'auth-code',
+    scope: 'https://www.googleapis.com/auth/gmail.readonly',
     onSuccess: async codeResponse => {
       try {
         setIsLoginLoading(true);

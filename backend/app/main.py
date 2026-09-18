@@ -510,49 +510,6 @@ async def get_portfolio(
     holdings = await crud.update_live_prices(db, holdings)
     return holdings
 
-@app.post("/portfolio/sync-gmail")
-async def sync_gmail_route(
-    db: AsyncSession = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    token_result = await db.execute(select(models.OAuthToken).where(
-        models.OAuthToken.user_id == current_user.id,
-        models.OAuthToken.provider == 'google'
-    ))
-    oauth_token = token_result.scalars().first()
-    
-    if not oauth_token:
-        raise HTTPException(status_code=400, detail="Google account not linked or missing permissions")
-        
-    try:
-        # In a real app we'd refresh the token using google_refresh_token if needed
-        # For now, pass the decrypted access and refresh tokens to the sync service
-        access_token = auth.decrypt_data(oauth_token.access_token)
-        refresh_token = auth.decrypt_data(oauth_token.refresh_token) if oauth_token.refresh_token else None
-        
-        # We need the client ID/secret to refresh tokens if needed
-        import os
-        from google.oauth2.credentials import Credentials
-        
-        creds = Credentials(
-            token=access_token,
-            refresh_token=refresh_token,
-            token_uri="https://oauth2.googleapis.com/token",
-            client_id=os.getenv("GOOGLE_CLIENT_ID"),
-            client_secret=os.getenv("GOOGLE_CLIENT_SECRET")
-        )
-        
-        # Here we would actually process the emails. 
-        # For demonstration we'll just parse the mock emails in the service.
-        results = await sync_demat_from_gmail(
-            db, 
-            current_user.id,
-            creds
-        )
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 # ---- CHAT ENDPOINTS ----
 
 @app.post("/chat/sessions", response_model=schemas.ChatSession)
@@ -638,7 +595,7 @@ async def get_top_gainers(
 # ---- PORTFOLIO ENDPOINTS ----
 
 class GmailSyncRequest(BaseModel):
-    google_access_token: str
+    pan: str
 
 @app.post("/api/portfolio/sync")
 async def sync_portfolio_gmail(
@@ -646,49 +603,33 @@ async def sync_portfolio_gmail(
     current_user: models.User = Depends(auth.get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Ensure user has a PAN
-    if not current_user.encrypted_pan:
-        raise HTTPException(status_code=400, detail="Please verify your PAN in Settings first.")
-        
     try:
-        # Decrypt PAN (mocked decryption for now, assuming it's stored plaintext in prototype)
-        # In a real system, you'd use Fernet to decrypt `current_user.encrypted_pan`
-        pan = current_user.encrypted_pan
+        # Fetch Google OAuth Token from DB
+        token_result = await db.execute(select(models.OAuthToken).where(
+            models.OAuthToken.user_id == current_user.id,
+            models.OAuthToken.provider == 'google'
+        ))
+        oauth_token = token_result.scalars().first()
         
-        # Mock Fallback if Google OAuth is not configured
-        import os
-        if not os.getenv("GOOGLE_CLIENT_ID"):
-            print("GOOGLE_CLIENT_ID missing. Using mock portfolio data for sync.")
-            await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
+        if not oauth_token or not oauth_token.access_token:
+            raise HTTPException(status_code=400, detail="Google account not connected or token missing.")
             
-            mock_holdings = [
-                {"symbol": "HDFCBANK", "quantity": 100, "avg_price": 1450.0},
-                {"symbol": "TCS", "quantity": 50, "avg_price": 3800.0},
-                {"symbol": "INFY", "quantity": 150, "avg_price": 1400.0},
-                {"symbol": "RELIANCE", "quantity": 75, "avg_price": 2800.0}
-            ]
-            
-            for h in mock_holdings:
-                new_holding = models.Holding(
-                    user_id=current_user.id,
-                    symbol=h["symbol"],
-                    quantity=h["quantity"],
-                    average_price=h["avg_price"]
-                )
-                db.add(new_holding)
-                
-            await db.commit()
-            return {"message": "Google OAuth is not configured. Mock portfolio loaded successfully!"}
-            
+        google_access_token = auth.decrypt_data(oauth_token.access_token)
+        google_refresh_token = auth.decrypt_data(oauth_token.refresh_token) if oauth_token.refresh_token else None
+        
+        if not google_access_token:
+            raise HTTPException(status_code=400, detail="Failed to decrypt Google token.")
+        
         # 1. Fetch PDF from Gmail
-        pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(request.google_access_token)
+        pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(google_access_token, google_refresh_token)
         
         # 2. Parse PDF
-        holdings_list = pdf_parser.parse_cdsl_cas(pdf_bytes, password=pan.upper())
+        holdings_list = pdf_parser.parse_cdsl_cas(pdf_bytes, password=request.pan.upper())
         
         if not holdings_list:
             raise HTTPException(status_code=400, detail="Successfully parsed PDF but found no valid holdings.")
             
+        # 3. Save to DB
         # 3. Save to DB
         await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
         

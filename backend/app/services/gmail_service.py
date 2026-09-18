@@ -1,3 +1,4 @@
+import os
 import logging
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -5,14 +6,20 @@ import base64
 
 logger = logging.getLogger(__name__)
 
-async def fetch_cas_pdf_from_gmail(access_token: str) -> bytes:
+async def fetch_cas_pdf_from_gmail(access_token: str, refresh_token: str = None) -> bytes:
     """
     Connects to the user's Gmail using their OAuth token and searches for the latest
     NSDL/CDSL CAS statement PDF.
     Returns the bytes of the PDF attachment.
     """
     try:
-        creds = Credentials(token=access_token)
+        creds = Credentials(
+            token=access_token,
+            refresh_token=refresh_token,
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            token_uri="https://oauth2.googleapis.com/token"
+        )
         service = build('gmail', 'v1', credentials=creds)
         
         # Search for CAS emails with attachments

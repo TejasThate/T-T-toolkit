@@ -90,6 +90,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Portfolio", icon: <LayoutDashboard size={18} />, path: "/portfolio" },
   ];
 
+  const discoverItems = [
+    { name: "IPO", icon: <ArrowUpRight size={18} />, path: "/ipo", badge: "5 open" },
+    { name: "Bonds", icon: <LayoutDashboard size={18} />, path: "#", badge: "1 open" },
+    { name: "ETFs", icon: <TrendingUp size={18} />, path: "#" },
+    { name: "Intraday Screener", icon: <Filter size={18} />, path: "#" },
+    { name: "Stocks SIP", icon: <Terminal size={18} />, path: "#" },
+    { name: "MTF stocks", icon: <TrendingUp size={18} />, path: "#" },
+    { name: "Events calendar", icon: <Bell size={18} />, path: "#" },
+    { name: "All Stocks screener", icon: <Filter size={18} />, path: "#" }
+  ];
+
   return (
     <div className="flex h-screen bg-[#0e0f12] text-slate-200 overflow-hidden font-sans relative">
       {/* LEFT SIDEBAR (Nav) */}
@@ -99,7 +110,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="font-bold text-lg tracking-tight">T&T Toolkit</span>
         </div>
         
-        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4 px-2">Menu</div>
           {navItems.map((item) => {
             const isActive = pathname === item.path;
@@ -115,6 +126,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 {item.icon}
                 {item.name}
+              </Link>
+            )
+          })}
+          
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-6 mb-4 px-2">Discover</div>
+          {discoverItems.map((item) => {
+            const isActive = pathname === item.path;
+            return (
+              <Link
+                key={item.name}
+                href={item.path}
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive 
+                    ? 'bg-[#6C5CE7]/10 text-[#6C5CE7]' 
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {item.icon}
+                  {item.name}
+                </div>
+                {item.badge && (
+                  <span className="text-[9px] uppercase tracking-wider font-bold bg-white/10 text-white/80 py-0.5 px-2 rounded-full">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             )
           })}

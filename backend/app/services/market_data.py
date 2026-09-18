@@ -65,29 +65,18 @@ async def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
             closes = data['Close']
             
             results = {}
-            if len(formatted_symbols) == 1:
-                if len(closes) >= 2:
-                    current = closes.iloc[-1]
-                    prev = closes.iloc[-2]
-                    change = ((current - prev) / prev) * 100 if prev else 0.0
-                    if not math.isnan(current):
-                        results[formatted_symbols[0]] = {
-                            "price": float(current),
-                            "change_pct": float(change)
-                        }
-            else:
-                for sym in formatted_symbols:
-                    if sym in closes:
-                        series = closes[sym].dropna()
-                        if len(series) >= 2:
-                            current = series.iloc[-1]
-                            prev = series.iloc[-2]
-                            change = ((current - prev) / prev) * 100 if prev else 0.0
-                            if not math.isnan(current):
-                                results[sym] = {
-                                    "price": float(current),
-                                    "change_pct": float(change)
-                                }
+            for sym in formatted_symbols:
+                if sym in closes:
+                    series = closes[sym].dropna()
+                    if len(series) >= 2:
+                        current = float(series.iloc[-1])
+                        prev = float(series.iloc[-2])
+                        change = ((current - prev) / prev) * 100 if prev else 0.0
+                        if not math.isnan(current):
+                            results[sym] = {
+                                "price": float(current),
+                                "change_pct": float(change)
+                            }
             return results
         except Exception as e:
             logger.error(f"yfinance download error: {e}")
@@ -129,3 +118,57 @@ async def fetch_top_gainers(limit: int = 5) -> list[dict]:
     set_to_cache(cache_key, gainers, ttl_seconds=120)  # cache gainers for 2 mins
     
     return gainers[:limit]
+
+async def fetch_top_losers(limit: int = 5) -> list[dict]:
+    """
+    Fetch top losers from the predefined NIFTY 50 basket.
+    """
+    cache_key = "top_losers"
+    cached = get_from_cache(cache_key)
+    if cached:
+        return cached[:limit]
+
+    quotes = await fetch_quotes(NIFTY_50_SYMBOLS)
+    if not quotes:
+        return []
+
+    losers = []
+    for sym, data in quotes.items():
+        losers.append({
+            "symbol": sym.replace(".NS", ""),
+            "price": data["price"],
+            "change_pct": data["change_pct"]
+        })
+        
+    losers.sort(key=lambda x: x["change_pct"])
+    
+    set_to_cache(cache_key, losers, ttl_seconds=120)
+    
+    return losers[:limit]
+
+async def fetch_index_data(symbol: str) -> dict:
+    """
+    Fetch index data. symbol should be ^NSEI for NIFTY 50, ^BSESN for SENSEX
+    """
+    cache_key = f"index_{symbol}"
+    cached = get_from_cache(cache_key)
+    if cached:
+        return cached
+
+    mapping = {
+        "NIFTY 50": "^NSEI",
+        "SENSEX": "^BSESN"
+    }
+    actual_sym = mapping.get(symbol, symbol)
+    
+    quotes = await fetch_quotes([actual_sym])
+    if actual_sym in quotes:
+        data = {
+            "name": symbol,
+            "value": quotes[actual_sym]["price"],
+            "change": round((quotes[actual_sym]["change_pct"] / 100) * quotes[actual_sym]["price"], 2),
+            "change_pct": quotes[actual_sym]["change_pct"]
+        }
+        set_to_cache(cache_key, data, ttl_seconds=60)
+        return data
+    return {"name": symbol, "value": 0, "change": 0, "change_pct": 0}

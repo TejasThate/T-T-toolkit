@@ -63,20 +63,18 @@ async def startup():
 
     # Initialize APScheduler for Market Data Polling (Phase 1)
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
-    from app.services.mock_market_data import MockMarketDataProvider
     from app.services.screener_service import update_screener_signals
     import json
-    
-    provider = MockMarketDataProvider()
+    from app.services import market_data
     
     async def poll_market_data():
         try:
             HEALTH_STATE["last_polled_time"] = time.time()
             indices = ["NIFTY 50", "SENSEX"]
-            index_data = [await provider.get_index_data(idx) for idx in indices]
-            gainers = await provider.get_top_gainers(5)
-            losers = await provider.get_top_losers(5)
-            quotes = await provider.get_live_quotes(["RELIANCE", "TCS", "HDFCBANK", "INFY"])
+            index_data = [await market_data.fetch_index_data(idx) for idx in indices]
+            gainers = await market_data.fetch_top_gainers(5)
+            losers = await market_data.fetch_top_losers(5)
+            quotes = await market_data.fetch_quotes(["RELIANCE", "TCS", "HDFCBANK", "INFY"])
             
             payload = {
                 "type": "market_update",
@@ -208,6 +206,13 @@ async def list_models():
 async def market_live():
     data = await market_service.get_live_market_data()
     return {"data": data}
+
+@app.get("/api/market/ipos")
+async def get_ipos():
+    from app.services.ipo_scraper import fetch_live_ipos
+    import asyncio
+    ipos = await asyncio.to_thread(fetch_live_ipos)
+    return {"ipos": ipos}
 
 @app.get("/api/market/predict/{symbol}")
 async def predict_trend(

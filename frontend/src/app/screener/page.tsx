@@ -104,7 +104,7 @@ export default function ScreenerPage() {
                     
                     <div className="flex items-center gap-2 text-sm text-slate-300">
                       <ShieldCheck size={16} className={signal.direction === 'Bullish' ? 'text-emerald-500' : 'text-red-500'} />
-                      <span>{signal.value}</span>
+                      <span>Confidence: {signal.confidence}%</span>
                     </div>
                   </div>
                 ))}

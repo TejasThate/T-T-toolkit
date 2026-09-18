@@ -71,7 +71,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   
   if (portfolioData.length > 0) {
     portfolioData.forEach((h: { symbol: string, quantity: number, average_price: number }) => {
-      const liveData = marketData[h.symbol + ".NS"]; // Assuming Indian stocks
+      const liveData = marketData[h.symbol + ".NS"] as { price?: number } | undefined;
       const livePrice = liveData?.price || h.average_price;
       const currentValue = h.quantity * livePrice;
       const investedValue = h.quantity * h.average_price;
@@ -233,18 +233,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="space-y-3">
               {Object.keys(marketData).length > 0 ? (
-                Object.entries(marketData).map(([symbol, item]: [string, { price: number, change_pct: number }]) => {
-                  const isUp = item.change_pct >= 0;
+                Object.entries(marketData).map(([symbol, item]: [string, any]) => {
+                  if (symbol === "type" || symbol === "quotes" || symbol === "indices" || symbol === "gainers" || symbol === "losers") return null;
+                  const isUp = item?.change_pct >= 0;
                   return (
                     <div key={symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
                       <div>
                         <div className="text-sm font-semibold text-slate-200">{symbol.replace('.NS', '').replace('^', '')}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-mono text-slate-200">{item.price?.toFixed(2)}</div>
+                        <div className="text-sm font-mono text-slate-200">{item?.price?.toFixed(2)}</div>
                         <div className={`text-xs font-mono font-medium flex items-center justify-end gap-1 ${isUp ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}>
                           {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                          {Math.abs(item.change_pct || 0).toFixed(2)}%
+                          {Math.abs(item?.change_pct || 0).toFixed(2)}%
                         </div>
                       </div>
                     </div>
@@ -266,8 +267,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             
             <div className="space-y-3">
-              {topGainers.length > 0 ? (
-                topGainers.map((item: { symbol: string, price: number, change_pct: number }) => {
+              {Array.isArray(topGainers) && topGainers.length > 0 ? (
+                topGainers.map((item: any) => {
                   return (
                     <div key={item.symbol} className="bg-[#141824] border border-[#22C55E]/10 rounded-xl p-3 flex justify-between items-center group hover:border-[#22C55E]/30 transition-colors">
                       <div>

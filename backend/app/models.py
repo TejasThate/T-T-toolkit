@@ -92,3 +92,26 @@ class Alert(Base):
     is_active = Column(Integer, default=1) # 1 for True, 0 for False
     created_at = Column(DateTime, server_default=func.now())
     triggered_at = Column(DateTime, nullable=True)
+
+class DailyBar(Base):
+    __tablename__ = "daily_bars"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    date = Column(DateTime, index=True)
+    open = Column(Float)
+    high = Column(Float)
+    low = Column(Float)
+    close = Column(Float)
+    volume = Column(Float)
+
+class ComputedSignal(Base):
+    __tablename__ = "computed_signals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String, index=True)
+    signal_type = Column(String, index=True) # e.g. "RSI", "MACD", "BREAKOUT"
+    direction = Column(String) # "Bullish", "Bearish"
+    value = Column(String, nullable=True) # e.g. "72.4 (Overbought)"
+    timestamp = Column(DateTime, server_default=func.now())
+

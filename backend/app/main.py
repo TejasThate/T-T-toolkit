@@ -59,6 +59,7 @@ async def startup():
     # Initialize APScheduler for Market Data Polling (Phase 1)
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from app.services.mock_market_data import MockMarketDataProvider
+    from app.services.screener_service import update_screener_signals
     import json
     
     provider = MockMarketDataProvider()
@@ -80,14 +81,24 @@ async def startup():
             }
             # Broadcast to websocket via Redis pub/sub relay
             await manager.broadcast(json.dumps(payload), channel="market:updates")
-            print(f"[POLL] Broadcasted live market data: {len(quotes)} quotes")
         except Exception as e:
             print(f"[ERROR] Polling market data failed: {e}")
             
+    async def run_daily_screener():
+        try:
+            from app.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as session:
+                await update_screener_signals(session)
+        except Exception as e:
+            print(f"[ERROR] Screener update failed: {e}")
+            
     scheduler = AsyncIOScheduler()
     scheduler.add_job(poll_market_data, 'interval', seconds=10)
+    # Run screener once on startup, then daily at midnight
+    scheduler.add_job(run_daily_screener, 'date') # Runs immediately
+    scheduler.add_job(run_daily_screener, 'cron', hour=0, minute=0)
     scheduler.start()
-    print("[OK] Started APScheduler for market data polling.")
+    print("[OK] Started APScheduler for market data and screeners.")
 
 @app.get("/")
 def read_root():
@@ -101,10 +112,16 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # We don't expect the client to send much, but keep the connection open
             data = await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+from app.services.screener_service import get_active_signals
+
+@app.get("/api/screener/signals")
+async def get_screener_signals(db: AsyncSession = Depends(get_db)):
+    signals = await get_active_signals(db)
+    return {"signals": signals}
 
 
 @app.get("/models")

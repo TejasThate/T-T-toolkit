@@ -17,6 +17,11 @@ from app.services import gmail_service, pdf_parser, ai_service
 
 app = FastAPI(title="T&T Toolkit API", version="0.1.0")
 
+import time
+HEALTH_STATE = {
+    "last_polled_time": None
+}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -66,6 +71,7 @@ async def startup():
     
     async def poll_market_data():
         try:
+            HEALTH_STATE["last_polled_time"] = time.time()
             indices = ["NIFTY 50", "SENSEX"]
             index_data = [await provider.get_index_data(idx) for idx in indices]
             gainers = await provider.get_top_gainers(5)
@@ -858,3 +864,47 @@ async def sync_portfolio_broker(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+
+@app.get("/api/health")
+async def health_check(db: AsyncSession = Depends(get_db)):
+    status_data = {
+        "status": "healthy",
+        "db_connected": False,
+        "redis_connected": False,
+        "last_polled_time": HEALTH_STATE["last_polled_time"],
+        "seconds_since_last_poll": None
+    }
+    
+    # 1. Check DB
+    try:
+        from sqlalchemy import text
+        await db.execute(text("SELECT 1"))
+        status_data["db_connected"] = True
+    except Exception as e:
+        status_data["status"] = "unhealthy"
+        status_data["error_db"] = str(e)
+        
+    # 2. Check Redis
+    try:
+        from app.websocket_manager import manager
+        if manager.redis_client:
+            await manager.redis_client.ping()
+            status_data["redis_connected"] = True
+        else:
+            status_data["redis_connected"] = False
+    except Exception as e:
+        status_data["status"] = "unhealthy"
+        status_data["error_redis"] = str(e)
+        
+    # 3. Check Poller
+    if HEALTH_STATE["last_polled_time"]:
+        status_data["seconds_since_last_poll"] = round(time.time() - HEALTH_STATE["last_polled_time"], 2)
+        if status_data["seconds_since_last_poll"] > 60:
+            status_data["status"] = "unhealthy"
+            status_data["error_poller"] = "Poller is stalled"
+            
+    if status_data["status"] != "healthy":
+        import fastapi
+        return fastapi.responses.JSONResponse(status_code=503, content=status_data)
+        
+    return status_data

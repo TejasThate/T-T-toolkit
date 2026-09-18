@@ -24,7 +24,7 @@ interface PortfolioState {
 
 export const usePortfolioStore = create<PortfolioState>()(
   devtools(
-    (set, get) => ({
+    (set) => ({
       holdings: [],
       totalValue: 0,
       dailyPnl: 0,

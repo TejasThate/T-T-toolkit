@@ -48,7 +48,8 @@ export function FloatingPerks() {
 
   useEffect(() => {
     // Only render animations on the client to avoid hydration mismatch
-    setMounted(true);
+    const t = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(t);
   }, []);
 
   if (!mounted) return null;

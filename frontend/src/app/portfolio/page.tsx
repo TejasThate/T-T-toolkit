@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { Loader2, Plus, UploadCloud, PieChart as PieChartIcon } from "lucide-react";
+import { Loader2, UploadCloud, PieChart as PieChartIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
 interface Holding {
@@ -47,7 +47,11 @@ export default function PortfolioPage() {
   };
 
   useEffect(() => {
-    fetchPortfolio();
+    const t = setTimeout(() => {
+      fetchPortfolio();
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const handleCASSync = async () => {
@@ -204,7 +208,7 @@ export default function PortfolioPage() {
             <div className="text-center text-slate-500 p-16 border border-white/5 rounded-2xl bg-white/5 backdrop-blur-sm mt-8">
               <UploadCloud size={48} className="mx-auto mb-4 text-slate-600" />
               <h3 className="text-2xl font-semibold mb-2 text-slate-300">No Holdings Found</h3>
-              <p className="mb-6">Click "Sync CAS via Gmail" to securely pull your NSDL/CDSL statement.</p>
+              <p className="mb-6">Click &quot;Sync CAS via Gmail&quot; to securely pull your NSDL/CDSL statement.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -291,7 +295,7 @@ export default function PortfolioPage() {
                           ))}
                         </Pie>
                         <Tooltip 
-                          formatter={(value: any) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+                          formatter={(value: number | string) => `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
                           contentStyle={{ backgroundColor: '#1a1b23', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
                           itemStyle={{ color: '#fff' }}
                         />

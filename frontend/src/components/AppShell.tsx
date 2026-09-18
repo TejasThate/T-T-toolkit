@@ -33,13 +33,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         setToken(data.access_token);
         setStarted(true);
         toast.success("Successfully logged in");
-      } catch (e: any) {
-        toast.error(`Login Error: ${e.message}`);
+      } catch (e: unknown) {
+        toast.error(`Login Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
       } finally {
         setIsLoginLoading(false);
       }
     },
-    onError: error => {
+    onError: () => {
       toast.error("Google Login Failed");
     }
   });
@@ -108,7 +108,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     {/* Wick */}
                     <div className="absolute top-[-30px] bottom-[-20px] w-[2px] bg-white/30" />
                     {/* Body */}
-                    <div className={`w-full rounded-sm z-10 ${i % 2 === 0 ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ height: `${Math.random() * 60 + 20}%` }} />
+                    <div className={`w-full rounded-sm z-10 ${i % 2 === 0 ? 'bg-emerald-400' : 'bg-rose-400'}`} style={{ height: `${(i * 17) % 60 + 20}%` }} />
                   </div>
                 ))}
              </div>

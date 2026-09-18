@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Search, Loader2, ArrowUpRight, ArrowDownRight, TrendingUp, AlertTriangle, ShieldCheck, Activity } from "lucide-react";
+import { Loader2, ArrowUpRight, ArrowDownRight, AlertTriangle, ShieldCheck, Activity } from "lucide-react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useQuery } from "@tanstack/react-query";
 
@@ -28,7 +28,7 @@ export default function ScreenerPage() {
 
   const signals = data?.signals || [];
   
-  const filteredSignals = signals.filter((s: any) => {
+  const filteredSignals = signals.filter((s: { direction: string }) => {
     if (filter === "ALL") return true;
     return s.direction === filter;
   });
@@ -87,7 +87,7 @@ export default function ScreenerPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {filteredSignals.map((signal: any) => (
+                {filteredSignals.map((signal: { id: number, symbol: string, signal_type: string, direction: string, confidence: number, target_price?: number, stop_loss?: number }) => (
                   <div key={signal.id} className="bg-black/20 border border-white/5 rounded-xl p-5 hover:border-white/10 transition-colors group">
                     <div className="flex justify-between items-start mb-4">
                       <div>

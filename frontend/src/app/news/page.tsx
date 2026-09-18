@@ -42,7 +42,11 @@ export default function NewsPage() {
   };
 
   useEffect(() => {
-    if (token) fetchNews();
+    if (token) {
+      const t = setTimeout(() => fetchNews(), 0);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   return (
@@ -110,7 +114,7 @@ export default function NewsPage() {
                 
                 {n.impact_reason && (
                   <p className="text-sm text-slate-400 italic mb-4 line-clamp-3">
-                    "{n.impact_reason}"
+                    &quot;{n.impact_reason}&quot;
                   </p>
                 )}
               </div>

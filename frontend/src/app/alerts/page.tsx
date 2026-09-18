@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/useAuthStore';
 import { toast } from 'sonner';
@@ -29,7 +29,7 @@ export default function AlertsPage() {
   });
 
   const createAlertMutation = useMutation({
-    mutationFn: async (newAlert: any) => {
+    mutationFn: async (newAlert: { symbol: string; condition: string; target_value: number }) => {
       const res = await fetch(`${API_BASE}/alerts`, {
         method: "POST",
         headers: { 
@@ -49,7 +49,7 @@ export default function AlertsPage() {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setTargetValue("");
     },
-    onError: (err: any) => toast.error(`Error: ${err.message}`)
+    onError: (err: unknown) => toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
   });
 
   const deleteAlertMutation = useMutation({
@@ -65,7 +65,7 @@ export default function AlertsPage() {
       toast.success("Alert deleted");
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
     },
-    onError: (err: any) => toast.error(`Error: ${err.message}`)
+    onError: (err: unknown) => toast.error(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
   });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -155,7 +155,7 @@ export default function AlertsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {alerts.map((alert: any) => (
+              {alerts.map((alert: { id: number, is_active: boolean, symbol: string, condition: string, target_value: number, triggered_at: string | null }) => (
                 <div 
                   key={alert.id} 
                   className={`bg-[#141824] border rounded-2xl p-5 flex items-center justify-between transition-colors ${

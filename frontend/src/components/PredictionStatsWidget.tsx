@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Target, Zap, Clock } from "lucide-react";
+import { Target, Zap, Clock } from "lucide-react";
 
 interface PredictionStats {
   total_evaluated: number;

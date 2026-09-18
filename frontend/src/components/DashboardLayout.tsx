@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../store/useAuthStore";
-import { toast } from "sonner";
-import { Bot, Terminal, TrendingUp, Filter, Newspaper, Bell, LayoutDashboard, Brain, PieChart, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Bot, Terminal, TrendingUp, Filter, Newspaper, Bell, LayoutDashboard, PieChart, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "./BrandLogo";
@@ -17,7 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
 
   // Auth Query
-  const { data: userProfile, refetch: refetchProfile } = useQuery({
+  const { data: userProfile } = useQuery({
     queryKey: ['authMe'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/auth/me`, {
@@ -34,7 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   });
 
   // Portfolio Query
-  const { data: portfolioData = [], refetch: refetchPortfolio } = useQuery({
+  const { data: portfolioData = [] } = useQuery({
     queryKey: ['portfolio'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/portfolio`, {
@@ -71,7 +70,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   let overallPnl = 0;
   
   if (portfolioData.length > 0) {
-    portfolioData.forEach((h: any) => {
+    portfolioData.forEach((h: { symbol: string, quantity: number, average_price: number }) => {
       const liveData = marketData[h.symbol + ".NS"]; // Assuming Indian stocks
       const livePrice = liveData?.price || h.average_price;
       const currentValue = h.quantity * livePrice;
@@ -184,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {portfolioData.length > 0 && (
                 <div className="mb-5 space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-2">My Holdings</div>
-                  {portfolioData.map((h: any) => (
+                  {portfolioData.map((h: { symbol: string, quantity: number, average_price: number }) => (
                     <div key={h.symbol} className="flex justify-between items-center text-xs">
                       <span className="font-semibold text-slate-300">{h.symbol}</span>
                       <span className="font-mono text-slate-400">{h.quantity}</span>
@@ -193,15 +192,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               )}
               
-              <button
-                onClick={() => window.location.href = `${API_BASE}/api/broker/login?provider=upstox`}
+              <Link
+                href={`${API_BASE}/api/broker/login?provider=upstox`}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#8B5CF6]/30 bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 transition-colors text-sm font-medium text-[#8B5CF6]"
               >
                 <div className="w-4 h-4 rounded bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center">
                   <span className="text-[8px] text-white font-bold">U</span>
                 </div>
                 Connect Upstox
-              </button>
+              </Link>
             </div>
           </section>
 
@@ -234,7 +233,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="space-y-3">
               {Object.keys(marketData).length > 0 ? (
-                Object.entries(marketData).map(([symbol, item]: [string, any]) => {
+                Object.entries(marketData).map(([symbol, item]: [string, { price: number, change_pct: number }]) => {
                   const isUp = item.change_pct >= 0;
                   return (
                     <div key={symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">
@@ -268,7 +267,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             
             <div className="space-y-3">
               {topGainers.length > 0 ? (
-                topGainers.map((item: any) => {
+                topGainers.map((item: { symbol: string, price: number, change_pct: number }) => {
                   return (
                     <div key={item.symbol} className="bg-[#141824] border border-[#22C55E]/10 rounded-xl p-3 flex justify-between items-center group hover:border-[#22C55E]/30 transition-colors">
                       <div>

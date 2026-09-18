@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { TrendingUp, Loader2, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { TrendingUp, Loader2, ArrowUpRight } from "lucide-react";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useQuery } from "@tanstack/react-query";
 
@@ -59,7 +59,7 @@ export default function MarketTrendsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {gainers.map((g: any) => (
+                    {gainers.map((g: { symbol: string, price: number, change: number, change_pct: number }) => (
                       <tr key={g.symbol} className="hover:bg-white/5 transition-colors">
                         <td className="p-4">
                           <span className="font-bold text-slate-200">{g.symbol}</span>

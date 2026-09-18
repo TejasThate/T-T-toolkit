@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Loader2, TrendingUp, TrendingDown, Activity, AlertCircle } from 'lucide-react';
 
 interface PredictionData {
@@ -36,8 +36,8 @@ export function PredictionChart({ symbol, token }: { symbol: string, token: stri
         const json = await res.json();
         if (!res.ok) throw new Error(json.detail || 'Failed to fetch prediction');
         if (mounted) setData(json);
-      } catch (err: any) {
-        if (mounted) setError(err.message);
+      } catch (err: unknown) {
+        if (mounted) setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         if (mounted) setLoading(false);
       }

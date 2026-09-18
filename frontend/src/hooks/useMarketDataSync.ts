@@ -6,7 +6,7 @@ const WS_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").rep
 
 export function useMarketDataSync() {
   const updateMarketPrices = usePortfolioStore((state) => state.updateMarketPrices);
-  const [data, setData] = useState<any>({});
+  const [data, setData] = useState<Record<string, unknown>>({});
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -52,7 +52,7 @@ export function useMarketDataSync() {
               updateMarketPrices(prices);
             }
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Failed to parse market update", err);
         }
       };

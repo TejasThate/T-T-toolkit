@@ -23,6 +23,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('token');
     set({ token: null, started: false });
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/';
   }
 }));

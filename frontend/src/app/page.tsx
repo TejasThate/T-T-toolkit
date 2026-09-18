@@ -49,8 +49,8 @@ export default function TerminalChatPage() {
       if (!res.ok) throw new Error(data.detail || "Chat failed");
       
       setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
-    } catch (err: any) {
-      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err.message}. Ensure your GROQ_API_KEY is configured on the backend.` }]);
+    } catch (err: unknown) {
+      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}. Ensure your GROQ_API_KEY is configured on the backend.` }]);
     } finally {
       setIsChatLoading(false);
     }

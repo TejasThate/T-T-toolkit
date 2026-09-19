@@ -35,7 +35,7 @@ export default function IPOPage() {
   const ipos = ipoData?.ipos || [];
 
   return (
-    <DashboardLayout>
+    <>
       <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
         
         {/* Header */}
@@ -140,6 +140,6 @@ export default function IPOPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </>
   );
 }

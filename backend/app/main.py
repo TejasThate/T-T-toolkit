@@ -143,13 +143,11 @@ async def startup():
             print(f"[ERROR] News pipeline failed: {e}")
             
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(poll_market_data, 'interval', seconds=10)
-    # Run screener once on startup, then daily at midnight
-    scheduler.add_job(run_daily_screener, 'date') # Runs immediately
+    scheduler.add_job(poll_market_data, 'interval', seconds=60)
+    # Run screener daily at midnight
     scheduler.add_job(run_daily_screener, 'cron', hour=0, minute=0)
-    # Run news pipeline once on startup, then every hour
-    scheduler.add_job(run_news_pipeline_job, 'date')
-    scheduler.add_job(run_news_pipeline_job, 'interval', hours=1)
+    # Run news pipeline every 4 hours instead of 1 hour to save resources
+    scheduler.add_job(run_news_pipeline_job, 'interval', hours=4)
     
     scheduler.start()
     print("[OK] Started APScheduler for market data and screeners.")

@@ -40,22 +40,28 @@ async def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
     if not symbols:
         return {}
 
-    # Format symbols for yfinance (append .NS if missing and not .BO)
     formatted_symbols = []
     for sym in symbols:
         sym = sym.strip().upper()
-        if not sym.endswith(".NS") and not sym.endswith(".BO"):
+        if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
             sym = f"{sym}.NS"
         formatted_symbols.append(sym)
         
-    # Check cache first
-    cache_key = f"quotes_{','.join(sorted(formatted_symbols))}"
-    cached = get_from_cache(cache_key)
-    if cached:
-        return cached
+    results = {}
+    missing_symbols = []
+    
+    for sym in formatted_symbols:
+        cached = get_from_cache(f"quote_{sym}")
+        if cached:
+            results[sym] = cached
+        else:
+            missing_symbols.append(sym)
+
+    if not missing_symbols:
+        return results
 
     def _do_fetch():
-        tickers = " ".join(formatted_symbols)
+        tickers = " ".join(missing_symbols)
         try:
             # We fetch 5 days to ensure we have the previous close for calculation
             data = yf.download(tickers, period="5d", progress=False)
@@ -64,29 +70,30 @@ async def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
                 
             closes = data['Close']
             
-            results = {}
-            for sym in formatted_symbols:
+            fetched = {}
+            for sym in missing_symbols:
                 if sym in closes:
-                    series = closes[sym].dropna()
+                    series = closes[sym] if len(missing_symbols) > 1 else closes
+                    series = series.dropna()
                     if len(series) >= 2:
                         current = float(series.iloc[-1])
                         prev = float(series.iloc[-2])
                         change = ((current - prev) / prev) * 100 if prev else 0.0
                         if not math.isnan(current):
-                            results[sym] = {
+                            fetched[sym] = {
                                 "price": float(current),
                                 "change_pct": float(change)
                             }
-            return results
+            return fetched
         except Exception as e:
             logger.error(f"yfinance download error: {e}")
             return {}
 
-    # Run blocking yfinance call in thread
-    results = await asyncio.to_thread(_do_fetch)
+    fetched_results = await asyncio.to_thread(_do_fetch)
     
-    if results:
-        set_to_cache(cache_key, results, ttl_seconds=60)
+    for sym, data in fetched_results.items():
+        results[sym] = data
+        set_to_cache(f"quote_{sym}", data, ttl_seconds=60)
         
     return results
 

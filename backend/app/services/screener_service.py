@@ -26,17 +26,33 @@ async def update_screener_signals(db: AsyncSession, symbols: list = DEFAULT_WATC
     """
     logger.info(f"Updating screener signals for {len(symbols)} symbols...")
     
-    # 1. Fetch Data
-    # For a real scalable app, we'd batch this. yfinance allows string of symbols.
-    tickers_str = " ".join(symbols)
-    
-    # Run yf download in threadpool because it's blocking
+    # 1. Fetch Data in chunks to prevent memory limit exhaustion
+    import gc
+    data = {}
+    chunk_size = 5
     loop = asyncio.get_event_loop()
-    try:
-        data = await loop.run_in_executor(None, lambda: yf.download(tickers_str, period="6mo", group_by="ticker", auto_adjust=True, progress=False))
-    except Exception as e:
-        logger.error(f"Failed to fetch yfinance data: {e}")
-        return
+    
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i:i+chunk_size]
+        tickers_str = " ".join(chunk)
+        try:
+            chunk_data = await loop.run_in_executor(
+                None, 
+                lambda: yf.download(tickers_str, period="6mo", group_by="ticker", auto_adjust=True, progress=False)
+            )
+            # If chunk has only 1 symbol, yfinance doesn't return a multi-index DataFrame
+            if len(chunk) == 1:
+                data[chunk[0]] = chunk_data
+            else:
+                for sym in chunk:
+                    if sym in chunk_data:
+                        data[sym] = chunk_data[sym]
+        except Exception as e:
+            logger.error(f"Failed to fetch yfinance data for chunk {chunk}: {e}")
+            
+        # Small sleep between chunks and garbage collect to clear old threads/objects
+        await asyncio.sleep(0.5)
+        gc.collect()
 
     # 2. Clear old signals
     await db.execute(delete(ComputedSignal))
@@ -46,12 +62,12 @@ async def update_screener_signals(db: AsyncSession, symbols: list = DEFAULT_WATC
     
     for symbol in symbols:
         try:
-            if len(symbols) == 1:
-                df = data
-            else:
-                df = data[symbol]
+            if symbol not in data:
+                continue
                 
-            if df.empty:
+            df = data[symbol]
+                
+            if df is None or df.empty:
                 continue
                 
             df = df.dropna()

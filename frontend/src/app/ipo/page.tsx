@@ -84,97 +84,75 @@ export default function IPOPage() {
             <p>No {activeTab.toLowerCase()} IPOs found at the moment.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 pb-20">
-            {filteredIpos.map((ipo, idx) => (
-              <div key={idx} className="bg-[#141824] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-colors relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl group-hover:bg-indigo-500/10 transition-colors pointer-events-none" />
-                
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex gap-4 items-center">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+          <div className="flex flex-col">
+            {/* Table Header */}
+            <div className="flex items-center justify-between px-6 py-3 border-b border-white/5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              <div className="w-1/4">Company</div>
+              <div className="w-1/4">Closing Date & Price</div>
+              <div className="w-1/6">Current GMP</div>
+              <div className="w-1/6">Est. Listing</div>
+              <div className="w-1/6 text-right pr-2">Action</div>
+            </div>
+            
+            {/* Table Rows */}
+            <div className="space-y-3 pb-20">
+              {filteredIpos.map((ipo, idx) => (
+                <div key={idx} className="bg-[#141824] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-white/10 transition-colors group">
+                  
+                  {/* Company */}
+                  <div className="w-1/4 flex gap-4 items-center pr-4">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold shrink-0">
                       {ipo.name.charAt(0)}
                     </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-200 flex items-center gap-2 truncate">
                         {ipo.name}
-                        <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-white/10 text-slate-300">
-                          {ipo.type}
-                        </span>
-                      </h3>
-                      <p className="text-sm text-slate-400 max-w-xl">{ipo.summary}</p>
+                        {ipo.type === 'SME' && (
+                          <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded uppercase shrink-0">SME</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate mt-0.5" title={ipo.summary}>{ipo.summary}</div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5
-                      ${ipo.status === 'Open' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
-                        ipo.status === 'Upcoming' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                        'bg-slate-500/10 text-slate-400 border-slate-500/20'}
-                    `}>
-                      <Clock size={14} />
-                      {ipo.status}
-                    </div>
-                    
-                    {ipo.status === 'Open' && (
-                      <button className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+
+                  {/* Dates & Price */}
+                  <div className="w-1/4 pr-4">
+                    <div className="text-sm font-medium text-slate-300">{ipo.close_date}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{ipo.price_band}</div>
+                  </div>
+
+                  {/* GMP */}
+                  <div className="w-1/6 pr-4">
+                    <div className="text-sm font-bold text-indigo-400">{ipo.gmp}</div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Premium</div>
+                  </div>
+
+                  {/* Est Listing */}
+                  <div className="w-1/6 pr-4">
+                    <div className="text-sm font-bold text-emerald-400">{ipo.est_listing}</div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Expected</div>
+                  </div>
+
+                  {/* Action */}
+                  <div className="w-1/6 flex justify-end">
+                    {ipo.status === 'Open' ? (
+                      <button className="px-6 py-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors text-sm font-bold rounded-lg w-full max-w-[120px]">
                         Apply
                       </button>
-                    )}
-                    {ipo.status === 'Upcoming' && (
-                      <button className="px-5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30 text-sm font-bold rounded-lg transition-colors">
+                    ) : ipo.status === 'Upcoming' ? (
+                      <button className="px-6 py-2 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-colors text-sm font-bold rounded-lg w-full max-w-[120px]">
                         Pre-apply
+                      </button>
+                    ) : (
+                      <button disabled className="px-6 py-2 bg-black/20 text-slate-600 text-sm font-bold rounded-lg w-full max-w-[120px] cursor-not-allowed border border-white/5">
+                        Closed
                       </button>
                     )}
                   </div>
+
                 </div>
-
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                    <div className="flex items-center gap-2 text-slate-400 mb-2">
-                      <IndianRupee size={16} />
-                      <span className="text-xs uppercase tracking-wider font-semibold">Price Band</span>
-                    </div>
-                    <div className="text-lg font-mono font-bold text-white">{ipo.price_band}</div>
-                    <div className="text-xs text-slate-500 mt-1">Issue Size: {ipo.issue_size}</div>
-                  </div>
-
-                  <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                    <div className="flex items-center gap-2 text-slate-400 mb-2">
-                      <Clock size={16} />
-                      <span className="text-xs uppercase tracking-wider font-semibold">Subscription</span>
-                    </div>
-                    <div className="text-sm font-medium text-white">{ipo.open_date}</div>
-                    <div className="text-xs text-slate-500 mt-1">To {ipo.close_date}</div>
-                  </div>
-
-                  <div className="bg-black/20 rounded-xl p-4 border border-white/5">
-                    <div className="flex items-center gap-2 text-indigo-400 mb-2">
-                      <ArrowUpRight size={16} />
-                      <span className="text-xs uppercase tracking-wider font-semibold">Current GMP</span>
-                    </div>
-                    <div className="text-xl font-mono font-bold text-indigo-400">{ipo.gmp}</div>
-                    <div className="text-xs text-slate-500 mt-1">Subject to change</div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 rounded-xl p-4 border border-emerald-500/20 relative overflow-hidden">
-                    <div className="flex items-center gap-2 text-emerald-400 mb-2 relative z-10">
-                      <ShieldCheck size={16} />
-                      <span className="text-xs uppercase tracking-wider font-semibold">Est. Listing</span>
-                    </div>
-                    <div className="text-xl font-mono font-bold text-emerald-400 relative z-10">{ipo.est_listing}</div>
-                  </div>
-                </div>
-
-                <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-4 flex gap-3">
-                  <Info size={18} className="text-indigo-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-slate-200 mb-1">Company Dynamics & Market Sentiment</h4>
-                    <p className="text-sm text-slate-400">{ipo.dynamics}</p>
-                  </div>
-                </div>
-                
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>

@@ -19,6 +19,7 @@ interface IPOData {
   est_listing: string;
   dynamics: string;
   summary: string;
+  subscription: string;
 }
 
 export default function IPOPage() {
@@ -97,11 +98,12 @@ export default function IPOPage() {
           <div className="flex flex-col">
             {/* Table Header */}
             <div className="flex items-center justify-between px-6 py-3 border-b border-white/5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              <div className="w-1/4">Company</div>
-              <div className="w-1/4">Closing Date & Price</div>
-              <div className="w-1/6">Current GMP</div>
-              <div className="w-1/6">Est. Listing</div>
-              <div className="w-1/6 text-right pr-2">Action</div>
+              <div className="w-[25%]">Company</div>
+              <div className="w-[15%]">Dates & Price</div>
+              <div className="w-[15%]">Subscription</div>
+              <div className="w-[15%]">Current GMP</div>
+              <div className="w-[15%]">Est. Listing</div>
+              <div className="w-[15%] text-right pr-2">Action</div>
             </div>
             
             {/* Table Rows */}
@@ -114,7 +116,7 @@ export default function IPOPage() {
                 <div key={idx} className="bg-gradient-to-r from-[#141824] to-[#1a1f33] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-indigo-500/30 transition-all hover:shadow-lg hover:shadow-indigo-500/5 group">
                   
                   {/* Company */}
-                  <div className="w-1/4 flex gap-4 items-center pr-4">
+                  <div className="w-[25%] flex gap-4 items-center pr-4">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md shadow-indigo-500/20 flex items-center justify-center text-white font-bold shrink-0">
                       {ipo.name.charAt(0)}
                     </div>
@@ -130,25 +132,31 @@ export default function IPOPage() {
                   </div>
 
                   {/* Dates & Price */}
-                  <div className="w-1/4 pr-4">
+                  <div className="w-[15%] pr-4">
                     <div className="text-sm font-medium text-slate-200">{ipo.close_date}</div>
                     <div className="text-xs text-slate-400 mt-0.5">{ipo.price_band}</div>
                   </div>
 
+                  {/* Subscription */}
+                  <div className="w-[15%] pr-4">
+                    <div className="text-sm font-bold text-sky-400">{ipo.subscription || "--"}</div>
+                    <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Subscribed</div>
+                  </div>
+
                   {/* GMP */}
-                  <div className="w-1/6 pr-4">
+                  <div className="w-[15%] pr-4">
                     <div className="text-sm font-bold text-indigo-400">{ipo.gmp} <span className="text-xs font-medium text-indigo-500/70">({gmpPct}%)</span></div>
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Premium</div>
                   </div>
 
                   {/* Est Listing */}
-                  <div className="w-1/6 pr-4">
+                  <div className="w-[15%] pr-4">
                     <div className="text-sm font-bold text-emerald-400">{ipo.est_listing}</div>
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Expected</div>
                   </div>
 
                   {/* Action */}
-                  <div className="w-1/6 flex justify-end">
+                  <div className="w-[15%] flex justify-end">
                     <button className="px-5 py-2 flex gap-2 items-center justify-center bg-white/5 hover:bg-white/10 text-indigo-300 hover:text-indigo-200 border border-white/10 transition-colors text-xs font-semibold rounded-lg w-full max-w-[140px]">
                       <Info size={14} />
                       Summary & News

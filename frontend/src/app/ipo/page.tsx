@@ -35,7 +35,17 @@ export default function IPOPage() {
   });
 
   const ipos = ipoData?.ipos || [];
-  const filteredIpos = ipos.filter(ipo => ipo.status.toLowerCase() === activeTab.toLowerCase());
+  
+  // Sort by highest expected listing gain (proxy for subscription demand)
+  const sortedIpos = ipos
+    .filter(ipo => ipo.status.toLowerCase() === activeTab.toLowerCase())
+    .sort((a, b) => {
+      const getPct = (str: string) => {
+        const match = str.match(/\(([-\d.]+)%\)/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+      return getPct(b.est_listing) - getPct(a.est_listing);
+    });
 
   return (
     <>
@@ -64,7 +74,7 @@ export default function IPOPage() {
               onClick={() => setActiveTab(tab)}
               className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
                 activeTab === tab 
-                  ? 'bg-white text-slate-900 shadow-md' 
+                  ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/25' 
                   : 'bg-[#141824] border border-white/10 text-slate-400 hover:text-white hover:border-white/20'
               }`}
             >
@@ -78,7 +88,7 @@ export default function IPOPage() {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" />
           </div>
-        ) : filteredIpos.length === 0 ? (
+        ) : sortedIpos.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-slate-500">
             <Info size={48} className="mb-4 opacity-20" />
             <p>No {activeTab.toLowerCase()} IPOs found at the moment.</p>
@@ -96,34 +106,38 @@ export default function IPOPage() {
             
             {/* Table Rows */}
             <div className="space-y-3 pb-20">
-              {filteredIpos.map((ipo, idx) => (
-                <div key={idx} className="bg-[#141824] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-white/10 transition-colors group">
+              {sortedIpos.map((ipo, idx) => {
+                const estPctMatch = ipo.est_listing.match(/\(([-\d.]+)%\)/);
+                const gmpPct = estPctMatch ? estPctMatch[1] : "0";
+                
+                return (
+                <div key={idx} className="bg-gradient-to-r from-[#141824] to-[#1a1f33] border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-indigo-500/30 transition-all hover:shadow-lg hover:shadow-indigo-500/5 group">
                   
                   {/* Company */}
                   <div className="w-1/4 flex gap-4 items-center pr-4">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold shrink-0">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md shadow-indigo-500/20 flex items-center justify-center text-white font-bold shrink-0">
                       {ipo.name.charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-slate-200 flex items-center gap-2 truncate">
+                      <div className="text-sm font-semibold text-white flex items-center gap-2 truncate">
                         {ipo.name}
                         {ipo.type === 'SME' && (
-                          <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded uppercase shrink-0">SME</span>
+                          <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded uppercase shrink-0">SME</span>
                         )}
                       </div>
-                      <div className="text-xs text-slate-500 truncate mt-0.5" title={ipo.summary}>{ipo.summary}</div>
+                      <div className="text-xs text-slate-400 truncate mt-0.5" title={ipo.summary}>{ipo.summary}</div>
                     </div>
                   </div>
 
                   {/* Dates & Price */}
                   <div className="w-1/4 pr-4">
-                    <div className="text-sm font-medium text-slate-300">{ipo.close_date}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{ipo.price_band}</div>
+                    <div className="text-sm font-medium text-slate-200">{ipo.close_date}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{ipo.price_band}</div>
                   </div>
 
                   {/* GMP */}
                   <div className="w-1/6 pr-4">
-                    <div className="text-sm font-bold text-indigo-400">{ipo.gmp}</div>
+                    <div className="text-sm font-bold text-indigo-400">{ipo.gmp} <span className="text-xs font-medium text-indigo-500/70">({gmpPct}%)</span></div>
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider mt-0.5">Premium</div>
                   </div>
 
@@ -135,23 +149,14 @@ export default function IPOPage() {
 
                   {/* Action */}
                   <div className="w-1/6 flex justify-end">
-                    {ipo.status === 'Open' ? (
-                      <button className="px-6 py-2 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white transition-colors text-sm font-bold rounded-lg w-full max-w-[120px]">
-                        Apply
-                      </button>
-                    ) : ipo.status === 'Upcoming' ? (
-                      <button className="px-6 py-2 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white transition-colors text-sm font-bold rounded-lg w-full max-w-[120px]">
-                        Pre-apply
-                      </button>
-                    ) : (
-                      <button disabled className="px-6 py-2 bg-black/20 text-slate-600 text-sm font-bold rounded-lg w-full max-w-[120px] cursor-not-allowed border border-white/5">
-                        Closed
-                      </button>
-                    )}
+                    <button className="px-5 py-2 flex gap-2 items-center justify-center bg-white/5 hover:bg-white/10 text-indigo-300 hover:text-indigo-200 border border-white/10 transition-colors text-xs font-semibold rounded-lg w-full max-w-[140px]">
+                      <Info size={14} />
+                      Summary & News
+                    </button>
                   </div>
 
                 </div>
-              ))}
+              )})}
             </div>
           </div>
         )}

@@ -22,6 +22,8 @@ interface IPOData {
 }
 
 export default function IPOPage() {
+  const [activeTab, setActiveTab] = React.useState('Open');
+  
   const { data: ipoData, isLoading } = useQuery<{ ipos: IPOData[] }>({
     queryKey: ['ipos'],
     queryFn: async () => {
@@ -33,15 +35,16 @@ export default function IPOPage() {
   });
 
   const ipos = ipoData?.ipos || [];
+  const filteredIpos = ipos.filter(ipo => ipo.status.toLowerCase() === activeTab.toLowerCase());
 
   return (
     <>
       <div className="h-full flex flex-col p-8 overflow-y-auto custom-scrollbar">
         
         {/* Header */}
-        <div className="flex justify-between items-end mb-8">
+        <div className="flex justify-between items-end mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight mb-2">IPO Tracker (India)</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight mb-2">IPO Dashboard</h1>
             <p className="text-slate-400">Live Grey Market Premium (GMP) & Expected Listing Gains</p>
           </div>
           
@@ -53,14 +56,36 @@ export default function IPOPage() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-3 mb-8 border-b border-white/5 pb-4">
+          {['Open', 'Closed', 'Upcoming', 'Applied'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
+                activeTab === tab 
+                  ? 'bg-white text-slate-900 shadow-md' 
+                  : 'bg-[#141824] border border-white/10 text-slate-400 hover:text-white hover:border-white/20'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
         {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" />
           </div>
+        ) : filteredIpos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+            <Info size={48} className="mb-4 opacity-20" />
+            <p>No {activeTab.toLowerCase()} IPOs found at the moment.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 pb-20">
-            {ipos.map((ipo, idx) => (
+            {filteredIpos.map((ipo, idx) => (
               <div key={idx} className="bg-[#141824] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-colors relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl group-hover:bg-indigo-500/10 transition-colors pointer-events-none" />
                 
@@ -80,13 +105,26 @@ export default function IPOPage() {
                     </div>
                   </div>
                   
-                  <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5
-                    ${ipo.status === 'Open' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
-                      ipo.status === 'Upcoming' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                      'bg-slate-500/10 text-slate-400 border-slate-500/20'}
-                  `}>
-                    <Clock size={14} />
-                    {ipo.status}
+                  <div className="flex items-center gap-4">
+                    <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5
+                      ${ipo.status === 'Open' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+                        ipo.status === 'Upcoming' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                        'bg-slate-500/10 text-slate-400 border-slate-500/20'}
+                    `}>
+                      <Clock size={14} />
+                      {ipo.status}
+                    </div>
+                    
+                    {ipo.status === 'Open' && (
+                      <button className="px-5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg transition-colors shadow-lg shadow-emerald-500/20">
+                        Apply
+                      </button>
+                    )}
+                    {ipo.status === 'Upcoming' && (
+                      <button className="px-5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/30 text-sm font-bold rounded-lg transition-colors">
+                        Pre-apply
+                      </button>
+                    )}
                   </div>
                 </div>
 

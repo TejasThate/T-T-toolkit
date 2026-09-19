@@ -71,7 +71,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   
   if (portfolioData.length > 0) {
     portfolioData.forEach((h: { symbol: string, quantity: number, average_price: number }) => {
-      const liveData = marketData?.quotes?.[h.symbol + ".NS"] as { price?: number } | undefined;
+      const quotes = marketData?.quotes as Record<string, any> | undefined;
+      const liveData = quotes?.[h.symbol + ".NS"] as { price?: number } | undefined;
       const livePrice = liveData?.price || h.average_price;
       const currentValue = h.quantity * livePrice;
       const investedValue = h.quantity * h.average_price;
@@ -269,9 +270,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             
             <div className="space-y-3">
-              {marketData.quotes && Object.keys(marketData.quotes).length > 0 ? (
+              {marketData.quotes && Object.keys(marketData.quotes as Record<string, any>).length > 0 ? (
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                Object.entries(marketData.quotes).map(([symbol, item]: [string, any]) => {
+                Object.entries(marketData.quotes as Record<string, any>).map(([symbol, item]: [string, any]) => {
                   const isUp = item?.change_pct >= 0;
                   return (
                     <div key={symbol} className="bg-[#141824] border border-white/5 rounded-xl p-3 flex justify-between items-center group hover:border-white/10 transition-colors">

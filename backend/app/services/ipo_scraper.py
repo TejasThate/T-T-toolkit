@@ -76,25 +76,72 @@ MOCK_IPOS = [
 
 def fetch_live_ipos():
     """
-    Attempts to fetch live IPO data. If it fails due to bot protection,
-    returns realistic fallback data for the demo.
+    Scrapes live IPO data from ipowatch.in for both Mainboard and SME IPOs.
     """
     try:
-        url = 'https://www.investorgain.com/report/live-ipo-gmp/331/'
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'}
-        res = requests.get(url, headers=headers, timeout=5)
+        url = 'https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/'
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36'}
+        res = requests.get(url, headers=headers, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
-        table = soup.find('table', {'id': 'reportTable'})
         
-        if table:
-            # Parse table logic here if available
-            rows = table.find('tbody').find_all('tr')
-            if len(rows) > 0 and 'No data available' not in rows[0].text:
-                live_ipos = []
-                # Placeholder for parsing logic once we bypass Cloudflare
-                return live_ipos
-                
-        # If we reach here, we hit Cloudflare or structure changed
+        # IPOWatch puts tables in figure class wp-block-table
+        tables = soup.find_all('figure', class_='wp-block-table')
+        if not tables or len(tables) < 2:
+            return MOCK_IPOS
+            
+        live_ipos = []
+        
+        # Parse Mainboard (Table 0) and SME (Table 1)
+        for i, table_fig in enumerate(tables[:2]):
+            ipo_type = "Mainboard" if i == 0 else "SME"
+            table = table_fig.find('table')
+            if not table: continue
+            
+            rows = table.find_all('tr')
+            if len(rows) <= 1: continue
+            
+            for row in rows[1:]: # Skip header
+                cols = row.find_all(['td'])
+                if len(cols) >= 7:
+                    name_raw = cols[0].text.strip()
+                    gmp_raw = cols[1].text.strip()
+                    price_raw = cols[3].text.strip()
+                    listing_raw = cols[4].text.strip()
+                    date_raw = cols[5].text.strip()
+                    status_raw = cols[6].text.strip()
+                    
+                    if "Not Announced" in name_raw or not name_raw:
+                        continue
+                        
+                    # Basic extraction
+                    name = name_raw.split("IPO")[0].strip() if "IPO" in name_raw else name_raw
+                    
+                    # Split date like "18 - 21 Sep" -> "18 Sep", "21 Sep"
+                    open_date = date_raw
+                    close_date = date_raw
+                    if "-" in date_raw:
+                        parts = date_raw.split("-")
+                        month = "".join([c for c in parts[1] if c.isalpha()]).strip()
+                        open_date = parts[0].strip() + (f" {month}" if not any(c.isalpha() for c in parts[0]) else "")
+                        close_date = parts[1].strip()
+                    
+                    live_ipos.append({
+                        "name": name,
+                        "type": ipo_type,
+                        "price_band": price_raw if price_raw != "--" else "TBA",
+                        "issue_size": "TBA", # IPowatch GMP table doesn't have issue size directly
+                        "status": status_raw if status_raw else "Upcoming",
+                        "open_date": open_date,
+                        "close_date": close_date,
+                        "gmp": gmp_raw if gmp_raw != "--" else "₹0",
+                        "est_listing": listing_raw if listing_raw != "--" else "TBA",
+                        "dynamics": f"Live GMP momentum tracking for {name}",
+                        "summary": f"{ipo_type} IPO currently in {status_raw.lower()} phase."
+                    })
+                    
+        if len(live_ipos) > 0:
+            return live_ipos
+            
         return MOCK_IPOS
     except Exception as e:
         logger.error(f"Error fetching live IPOs: {e}")

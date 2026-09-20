@@ -55,7 +55,6 @@ async def fetch_cas_pdf_from_gmail(access_token: str, refresh_token: str = None)
         # and they can see the functionality working.
         if "has not been used in project" in str(e) or "403" in str(e):
             logger.warning("Gmail API disabled. Using fallback mock CAS PDF.")
-            import os
             # We will create a tiny valid PDF or just throw a specific error that the frontend can handle to show mock data
             # Actually, instead of generating a PDF, let's just raise a specific error that `main.py` can catch and populate mock holdings.
             raise ValueError("GMAIL_API_DISABLED")

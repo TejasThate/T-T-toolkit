@@ -340,7 +340,8 @@ class GoogleAuthCodeRequest(BaseModel):
 @app.post("/auth/google/code", response_model=schemas.Token)
 async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depends(get_db)):
     try:
-        token_info = auth.exchange_google_code(req.code)
+        import asyncio
+        token_info = await asyncio.to_thread(auth.exchange_google_code, req.code)
         idinfo = token_info.get("idinfo", {})
         email = idinfo.get("email")
         if not email:

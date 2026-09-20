@@ -341,7 +341,8 @@ class GoogleAuthCodeRequest(BaseModel):
 async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depends(get_db)):
     try:
         import asyncio
-        token_info = await asyncio.to_thread(auth.exchange_google_code, req.code)
+        loop = asyncio.get_running_loop()
+        token_info = await loop.run_in_executor(None, auth.exchange_google_code, req.code)
         idinfo = token_info.get("idinfo", {})
         email = idinfo.get("email")
         if not email:

@@ -7,6 +7,41 @@ import { useQuery } from "@tanstack/react-query";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const TradingViewWidget = () => {
+  const container = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!container.current) return;
+    
+    // Clear previous if any
+    container.current.innerHTML = '';
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = `
+      {
+        "autosize": true,
+        "symbol": "NASDAQ:GOOGL",
+        "interval": "D",
+        "timezone": "Asia/Kolkata",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "allow_symbol_change": true,
+        "calendar": false,
+        "support_host": "https://www.tradingview.com"
+      }`;
+    container.current.appendChild(script);
+  }, []);
+
+  return (
+    <div className="tradingview-widget-container" ref={container} style={{ height: "500px", width: "100%" }}>
+    </div>
+  );
+};
+
 export default function ScreenerPage() {
   const { token } = useAuthStore();
   const [filter, setFilter] = useState("ALL"); // ALL, Bullish, Bearish
@@ -61,6 +96,11 @@ export default function ScreenerPage() {
 
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative">
         <div className="max-w-5xl mx-auto space-y-8">
+          
+          <section className="bg-[#141824] border border-white/5 rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-slate-200 mb-4">Market Graph</h2>
+            <TradingViewWidget />
+          </section>
           
           <section className="bg-[#141824] border border-white/5 rounded-2xl p-6">
             <h2 className="text-xl font-bold text-slate-200 mb-2">Algorithmic Signals</h2>

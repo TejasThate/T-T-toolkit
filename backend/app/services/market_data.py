@@ -69,35 +69,39 @@ async def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
     def _do_fetch():
         tickers = " ".join(missing_symbols)
         try:
-            # We fetch 1 day, 1 minute interval to get live intraday prices
-            data = yf.download(tickers, period="5d", interval="1m", progress=False)
-            if data.empty or 'Close' not in data:
-                # fallback to daily if 1m fails
-                data = yf.download(tickers, period="5d", progress=False)
-                if data.empty or 'Close' not in data:
+            # Fetch 1m data for current prices and 1d data for previous close, both in bulk
+            data_1m = yf.download(tickers, period="5d", interval="1m", progress=False)
+            data_daily = yf.download(tickers, period="5d", progress=False)
+            
+            if data_1m.empty or 'Close' not in data_1m:
+                data_1m = data_daily
+                if data_1m.empty or 'Close' not in data_1m:
                     return {}
                 
-            closes = data['Close']
+            closes_1m = data_1m['Close']
+            closes_daily = data_daily['Close'] if not data_daily.empty and 'Close' in data_daily else None
             
             fetched = {}
             for sym in missing_symbols:
-                if sym in closes:
-                    series = closes[sym] if len(missing_symbols) > 1 else closes
-                    series = series.dropna()
-                    if len(series) >= 2:
-                        current = float(series.iloc[-1])
-                        # Get yesterday's close by fetching 5d daily data just for the previous close
-                        daily_data = yf.download(sym, period="5d", progress=False)
-                        if not daily_data.empty and 'Close' in daily_data:
-                            daily_closes = daily_data['Close'].dropna()
-                            if len(daily_closes) >= 2:
-                                prev = float(daily_closes.iloc[-2])
-                                change = ((current - prev) / prev) * 100 if prev else 0.0
-                                if not math.isnan(current):
-                                    fetched[sym] = {
-                                        "price": float(current),
-                                        "change_pct": float(change)
-                                    }
+                if sym in closes_1m:
+                    series_1m = closes_1m[sym] if len(missing_symbols) > 1 else closes_1m
+                    series_1m = series_1m.dropna()
+                    if len(series_1m) >= 1:
+                        current = float(series_1m.iloc[-1])
+                        prev = current # fallback
+                        
+                        if closes_daily is not None and sym in closes_daily:
+                            series_daily = closes_daily[sym] if len(missing_symbols) > 1 else closes_daily
+                            series_daily = series_daily.dropna()
+                            if len(series_daily) >= 2:
+                                prev = float(series_daily.iloc[-2])
+                                
+                        change = ((current - prev) / prev) * 100 if prev else 0.0
+                        if not math.isnan(current):
+                            fetched[sym] = {
+                                "price": float(current),
+                                "change_pct": float(change)
+                            }
             return fetched
         except Exception as e:
             logger.error(f"yfinance download error: {e}")

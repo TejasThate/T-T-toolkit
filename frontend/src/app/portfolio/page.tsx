@@ -117,58 +117,8 @@ export default function PortfolioPage() {
           >
             <span>↻ Refresh</span>
           </button>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-6 py-2.5 bg-gradient-to-r from-[#6C5CE7] to-[#A29BFE] hover:shadow-lg hover:shadow-[#6C5CE7]/30 text-white rounded-xl font-medium transition flex items-center space-x-2"
-          >
-            <UploadCloud size={18} />
-            <span>Sync CAS via Gmail</span>
-          </button>
         </div>
       </header>
-
-      {/* CAS Sync Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#13141a] border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl">
-            <h2 className="text-2xl font-bold text-slate-200 mb-2">Sync CAS via Gmail</h2>
-            <p className="text-slate-400 text-sm mb-6">
-              T&T Toolkit will scan your connected Gmail account for the latest NSDL/CDSL CAS statement. Your PAN is required as the password to decrypt the PDF. It will <strong>never</strong> be saved.
-            </p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">PAN Number</label>
-                <input
-                  type="text"
-                  value={panNumber}
-                  onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
-                  placeholder="ABCDE1234F"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] focus:border-transparent uppercase tracking-widest"
-                  maxLength={10}
-                />
-              </div>
-              
-              <div className="flex justify-end space-x-3 mt-8">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCASSync}
-                  disabled={syncing || panNumber.length !== 10}
-                  className="px-5 py-2.5 bg-[#6C5CE7] hover:bg-[#5A4FCF] text-white rounded-xl transition font-medium flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {syncing ? <Loader2 size={18} className="animate-spin" /> : <UploadCloud size={18} />}
-                  <span>{syncing ? "Syncing..." : "Start Sync"}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-64">

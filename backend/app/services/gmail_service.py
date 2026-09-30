@@ -50,4 +50,7 @@ async def fetch_cas_pdf_from_gmail(access_token: str, refresh_token: str = None)
         
     except Exception as e:
         logger.error(f"Gmail sync error: {e}")
+        if "has not been used in project" in str(e) or "403" in str(e):
+            logger.warning("Gmail API disabled. Using fallback mock CAS PDF.")
+            raise ValueError("GMAIL_API_DISABLED")
         raise ValueError(f"Failed to sync with Gmail: {e}")

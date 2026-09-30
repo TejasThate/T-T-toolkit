@@ -156,12 +156,8 @@ def fetch_live_ipos():
                     })
                     
         if len(live_ipos) > 0:
-            import time
-            global _IPO_CACHE
-            _IPO_CACHE = {
-                "data": live_ipos,
-                "expires_at": time.time() + 300 # Cache for 5 minutes
-            }
+            _IPO_CACHE["data"] = live_ipos
+            _IPO_CACHE["expires_at"] = time.time() + 300 # Cache for 5 minutes
             return live_ipos
             
         return MOCK_IPOS

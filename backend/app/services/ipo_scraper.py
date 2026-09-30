@@ -74,14 +74,21 @@ MOCK_IPOS = [
     }
 ]
 
+_IPO_CACHE = {"data": [], "expires_at": 0}
+
 def fetch_live_ipos():
     """
     Scrapes live IPO data from ipowatch.in for both Mainboard and SME IPOs.
     """
+    import time
+    global _IPO_CACHE
+    if time.time() < _IPO_CACHE["expires_at"] and _IPO_CACHE["data"]:
+        return _IPO_CACHE["data"]
+
     try:
         url = 'https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/'
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36'}
-        res = requests.get(url, headers=headers, timeout=10)
+        res = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(res.text, 'html.parser')
         
         # IPOWatch puts tables in figure class wp-block-table
@@ -149,6 +156,12 @@ def fetch_live_ipos():
                     })
                     
         if len(live_ipos) > 0:
+            import time
+            global _IPO_CACHE
+            _IPO_CACHE = {
+                "data": live_ipos,
+                "expires_at": time.time() + 300 # Cache for 5 minutes
+            }
             return live_ipos
             
         return MOCK_IPOS

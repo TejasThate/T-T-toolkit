@@ -36,7 +36,7 @@ export default function TerminalChatPage() {
     setIsChatLoading(true);
     
     try {
-      const res = await fetch(`${API_BASE}/api/ai/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -72,7 +72,7 @@ export default function TerminalChatPage() {
       <TerminalBackground />
 
       {/* Header */}
-      <header className="h-16 flex-shrink-0 border-b border-white/5 flex items-center px-6 bg-[#0e0f12]/80 backdrop-blur-xl z-20">
+      <header className="h-16 flex-shrink-0 border-b border-white/5 flex items-center px-6 bg-[#0e0f12]/80 backdrop-blur-xl max-md:backdrop-blur-none max-md:bg-[#0e0f12] z-20">
         <h1 className="font-semibold text-lg tracking-tight flex items-center gap-2">
           <Bot size={20} className="text-[#6C5CE7]" />
           Terminal AI

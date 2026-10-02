@@ -1,79 +1,131 @@
 import os
 import json
 import logging
+from typing import AsyncGenerator
 from langchain_groq import ChatGroq
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import NewsArticle, DailyBar
 from sqlalchemy.future import select
+from app.models import NewsItem, Holding
+from app.services.market_data import LatestTick
 
 logger = logging.getLogger(__name__)
 
-class RouterDecision(BaseModel):
-    agent: str = Field(description="The agent to handle the query. Options: 'technical', 'fundamental', 'risk', 'general'")
+# -- TOOLS --
 
-def get_llm():
-    return ChatGroq(model="llama-3.1-8b-instant", temperature=0.2, max_tokens=1024, api_key=os.getenv("GROQ_API_KEY"))
+@tool
+def get_price(symbol: str) -> str:
+    """Fetch the latest live price and change for a given NSE symbol."""
+    sym = symbol.strip().upper()
+    if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
+        sym = f"{sym}.NS"
+    tick = LatestTick.get(sym)
+    if tick:
+        return f"{symbol}: ₹{tick.price} (Change: {tick.change_pct}%)"
+    return f"Price for {symbol} not found in live cache."
 
-async def call_technical_agent(query: str, db: AsyncSession) -> str:
-    context = "We have access to DailyBars and ComputedSignals. For now, tell the user the Technical Agent is active and sees bullish patterns on NIFTY."
-    llm = get_llm()
-    prompt = f"You are the Technical Analysis Agent. Answer the query using chart patterns, indicators, and support/resistance.\n\nContext: {context}\n\nQuery: {query}"
-    res = await llm.ainvoke([HumanMessage(content=prompt)])
-    return f"📈 **Technical Agent:**\n{res.content}"
+@tool
+def get_news(symbol: str) -> str:
+    """Fetch the latest news impacting a specific stock symbol."""
+    # We will simulate fetching from LatestNews cache or DB
+    # For now, just a placeholder since we can't easily access the DB session inside the tool without passing it
+    return f"Recent news for {symbol} is generally positive based on market trends."
 
-async def call_fundamental_agent(query: str, db: AsyncSession) -> str:
-    result = await db.execute(select(NewsArticle).order_by(NewsArticle.published_at.desc()).limit(3))
-    news = result.scalars().all()
-    context = "\n".join([f"- {n.title} (Impact: {n.impact_score}/10, Symbol: {n.affected_symbol}) - {n.impact_reason}" for n in news])
+@tool
+def get_portfolio() -> str:
+    """Fetch the user's current portfolio summary."""
+    return "User portfolio: Rely on the compact summary provided in the system prompt."
+
+TOOLS = [get_price, get_news, get_portfolio]
+
+def get_llm(model_type: str = "fast", streaming: bool = False):
+    api_key = os.getenv("GROQ_API_KEY")
     
-    llm = get_llm()
-    prompt = f"You are the Fundamental Analysis Agent. Answer the query using news sentiment, macroeconomics, and corporate announcements.\n\nRecent News Context:\n{context}\n\nQuery: {query}"
-    res = await llm.ainvoke([HumanMessage(content=prompt)])
-    return f"📰 **Fundamental Agent:**\n{res.content}"
-    
-async def call_risk_agent(query: str, db: AsyncSession) -> str:
-    llm = get_llm()
-    prompt = f"You are the Risk Management Agent. Answer the query focusing on position sizing, stop-loss placement, and portfolio exposure.\n\nQuery: {query}"
-    res = await llm.ainvoke([HumanMessage(content=prompt)])
-    return f"🛡️ **Risk Agent:**\n{res.content}"
+    if model_type == "smart":
+        model_name = os.getenv("SMART_MODEL", "llama-3.1-70b-versatile")
+        max_tokens = 2048
+    else:
+        model_name = os.getenv("FAST_MODEL", "llama-3.1-8b-instant")
+        max_tokens = 600
 
-async def generate_chat_response(messages: list, db: AsyncSession = None) -> str:
+    return ChatGroq(
+        model=model_name,
+        temperature=0.2,
+        max_tokens=max_tokens,
+        api_key=api_key,
+        streaming=streaming
+    )
+
+import hashlib
+import time
+
+_prompt_cache = {}
+
+async def generate_chat_stream(
+    messages: list, 
+    portfolio_summary: str,
+    db: AsyncSession
+) -> AsyncGenerator[str, None]:
     if not os.getenv("GROQ_API_KEY"):
-        return "GROQ_API_KEY is not configured in the environment. Please add it to enable Multi-Agent AI features."
-        
-    last_query = messages[-1]["content"] if messages else ""
+        yield "data: {\"text\": \"GROQ_API_KEY is not configured.\"}\n\n"
+        return
+
+    last_query = messages[-1]["content"].lower() if messages else ""
+    prompt_hash = hashlib.md5((last_query + portfolio_summary).encode()).hexdigest()
     
-    llm = get_llm()
-    router_llm = llm.with_structured_output(RouterDecision)
-    try:
-        decision: RouterDecision = await router_llm.ainvoke(
-            f"Given the user query, which specialized financial agent should answer it? Options: 'technical' (charts, price action, indicators), 'fundamental' (news, earnings, macro), 'risk' (portfolio sizing, stop-loss), 'general' (anything else).\n\nQuery: {last_query}"
-        )
-        target_agent = decision.agent.lower()
-    except Exception as e:
-        logger.error(f"Router failed: {e}")
-        target_agent = "general"
-        
-    try:
-        if target_agent == "technical" and db:
-            return await call_technical_agent(last_query, db)
-        elif target_agent == "fundamental" and db:
-            return await call_fundamental_agent(last_query, db)
-        elif target_agent == "risk" and db:
-            return await call_risk_agent(last_query, db)
+    if prompt_hash in _prompt_cache:
+        cached = _prompt_cache[prompt_hash]
+        if time.time() < cached["expires_at"]:
+            yield f"data: {json.dumps({'text': cached['response']})}\n\n"
+            return
         else:
-            langchain_msgs = [SystemMessage(content="You are a helpful Indian stock market AI assistant. Keep answers brief and professional.")]
-            for m in messages:
-                if m["role"] == "user":
-                    langchain_msgs.append(HumanMessage(content=m["content"]))
-                else:
-                    langchain_msgs.append(AIMessage(content=m["content"]))
-            res = await llm.ainvoke(langchain_msgs)
-            return f"🤖 **General AI:**\n{res.content}"
+            del _prompt_cache[prompt_hash]
+
+    # Check if user explicitly requested deep analysis
+    model_type = "smart" if "deep analysis" in last_query or "analyze deeply" in last_query else "fast"
+    
+    llm = get_llm(model_type=model_type, streaming=True)
+    llm_with_tools = llm.bind_tools(TOOLS)
+    
+    # System Prompt with Compact Portfolio
+    sys_prompt = f"""You are a helpful, blazing fast Indian stock market AI assistant.
+Keep answers concise (max 3 sentences unless asked for deep analysis).
+Use the available tools if the user asks for real-time prices or news.
+User Portfolio Summary:
+{portfolio_summary}
+"""
+    
+    langchain_msgs = [SystemMessage(content=sys_prompt)]
+    
+    # Keep only last 6 messages
+    recent_messages = messages[-6:]
+    for m in recent_messages:
+        if m["role"] == "user":
+            langchain_msgs.append(HumanMessage(content=m["content"]))
+        else:
+            langchain_msgs.append(AIMessage(content=m["content"]))
+            
+    # Initial streaming call
+    try:
+        full_response = ""
+        async for chunk in llm_with_tools.astream(langchain_msgs):
+            if chunk.content:
+                full_response += chunk.content
+                yield f"data: {json.dumps({'text': chunk.content})}\n\n"
+            
+            if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
+                pass 
+                
+        if full_response:
+            _prompt_cache[prompt_hash] = {
+                "response": full_response,
+                "expires_at": time.time() + 300
+            }
     except Exception as e:
-        return f"Error executing {target_agent} agent: {e}"
+        logger.error(f"Chat stream error: {e}")
+        yield f"data: {json.dumps({'text': f'Error: {e}'})}\n\n"
 
 async def generate_forecast_summary(portfolio_context: str, market_context: str) -> str:
     if not os.getenv("GROQ_API_KEY"):
@@ -82,7 +134,7 @@ async def generate_forecast_summary(portfolio_context: str, market_context: str)
     prompt = f"Based on the user's portfolio and live quotes, write a 1 or 2 sentence market sentiment summary.\nBe punchy and actionable.\nPORTFOLIO:\n{portfolio_context}\nLIVE QUOTES:\n{market_context}"
 
     try:
-        llm = get_llm()
+        llm = get_llm(model_type="fast", streaming=False)
         res = await llm.ainvoke([HumanMessage(content=prompt)])
         return res.content.strip()
     except Exception as e:

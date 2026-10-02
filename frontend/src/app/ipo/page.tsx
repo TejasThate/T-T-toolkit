@@ -24,15 +24,15 @@ interface IPOData {
 
 export default function IPOPage() {
   const [activeTab, setActiveTab] = React.useState('Open');
-  
+  const [activeType, setActiveType] = React.useState('All');
+  const [expandedIpo, setExpandedIpo] = React.useState<number | null>(null);
   const { data: ipoData, isLoading } = useQuery<{ ipos: IPOData[] }>({
     queryKey: ['ipos'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/market/ipos`);
       if (!res.ok) throw new Error('Failed to fetch IPOs');
       return res.json();
-    },
-    refetchInterval: 60 * 1000 // Refresh every minute
+    }
   });
 
   const ipos = ipoData?.ipos || [];

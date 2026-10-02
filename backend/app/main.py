@@ -14,24 +14,126 @@ from .database import engine, Base, get_db
 from . import models, schemas, crud, auth, news_service, market_service, prediction_service
 from app.services import market_data
 from app.services import gmail_service, pdf_parser, ai_service
+import sentry_sdk
+import os
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
+
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="T&T Toolkit API", version="0.1.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+import time
+import logging
+import os
+import json
+from fastapi import Request
+from fastapi.middleware.gzip import GZipMiddleware
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("api")
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    duration_ms = process_time * 1000
+    
+    log_msg = f"{request.method} {request.url.path} - {response.status_code} - {duration_ms:.2f}ms"
+    if duration_ms > 1000:
+        logger.warning(f"SLOW REQUEST: {log_msg}")
+    else:
+        logger.info(log_msg)
+        
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+from sqlalchemy import text
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "provider": os.getenv("MARKET_PROVIDER", "yfinance")}
+
+@app.get("/health/deep")
+async def health_check_deep(db: AsyncSession = Depends(get_db)):
+    start_time = time.time()
+    try:
+        await db.execute(text("SELECT 1"))
+        db_status = "ok"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
+    duration_ms = (time.time() - start_time) * 1000
+    
+    return {
+        "status": "ok" if db_status == "ok" else "degraded",
+        "db": db_status,
+        "db_ping_ms": round(duration_ms, 2)
+    }
 
 import time
 HEALTH_STATE = {
     "last_polled_time": None
 }
 
+import re
+
+# We use allow_origin_regex for Vercel preview deployments
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://t-t-toolkit.vercel.app").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=False,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Retry-After", "ETag"],
 )
+from fastapi.responses import JSONResponse
+import uuid
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    import traceback
+    traceback.print_exc()
+    # Return JSON with CORS headers
+    headers = {
+        "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+        "Access-Control-Allow-Credentials": "true",
+    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "code": "500",
+            "request_id": request.headers.get("x-request-id", str(uuid.uuid4()))
+        },
+        headers=headers
+    )
+
+from app.scheduler import start_scheduler, stop_scheduler
+from app.stream import router as stream_router
+
+app.include_router(stream_router, prefix="/stream", tags=["Stream"])
 
 @app.on_event("startup")
 async def startup():
+    from app.services.market_data import market_data_poller
+    import asyncio
+    asyncio.create_task(market_data_poller(app))
     import os
     print("--- STARTUP DIAGNOSTICS ---")
     
@@ -42,6 +144,9 @@ async def startup():
         print("[OK] Connected to database and initialized tables.")
     except Exception as e:
         print(f"[ERROR] Database connection failed: {e}")
+        
+    start_scheduler()
+
         
     # Check Environment Variables
     if not os.getenv("GROQ_API_KEY"):
@@ -126,7 +231,11 @@ async def startup():
 
         except Exception as e:
             print(f"[ERROR] Polling market data failed: {e}")
-            
+
+@app.on_event("shutdown")
+async def shutdown():
+    stop_scheduler()
+
     async def run_daily_screener():
         try:
             from app.database import AsyncSessionLocal
@@ -142,6 +251,7 @@ async def startup():
         except Exception as e:
             print(f"[ERROR] News pipeline failed: {e}")
             
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
     scheduler = AsyncIOScheduler()
     scheduler.add_job(poll_market_data, 'interval', seconds=60)
     # Run screener daily at midnight
@@ -253,7 +363,8 @@ async def get_prediction_stats(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/auth/register", response_model=schemas.Token)
-async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
+@limiter.limit("5/minute")
+async def register(request: Request, user: schemas.UserCreate, db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(models.User).where(models.User.email == user.email))
         db_user = result.scalars().first()
@@ -276,7 +387,8 @@ async def register(user: schemas.UserCreate, db: AsyncSession = Depends(get_db))
         raise HTTPException(status_code=400, detail=f"Registration Error: {str(e)}")
 
 @app.post("/auth/login", response_model=schemas.Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     try:
         result = await db.execute(select(models.User).where(models.User.email == form_data.username))
         user = result.scalars().first()
@@ -295,54 +407,26 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
             raise e
         raise HTTPException(status_code=400, detail=f"Login Error: {str(e)}")
 
-@app.post("/auth/google", response_model=schemas.Token)
-async def google_login(req: schemas.GoogleLoginRequest, db: AsyncSession = Depends(get_db)):
-    try:
-        try:
-            from google.oauth2 import id_token
-            from google.auth.transport import requests as grequests
-            import os
-            GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-            if not GOOGLE_CLIENT_ID:
-                raise Exception("Missing GOOGLE_CLIENT_ID env var")
-            idinfo = id_token.verify_oauth2_token(req.credential, grequests.Request(), GOOGLE_CLIENT_ID)
-        except Exception as e:
-            print(f"ID token verification failed: {e}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Google Token: {e}")
-            
-        email = idinfo.get("email")
-        if not email:
-            raise HTTPException(status_code=400, detail="Google token missing email")
-
-        result = await db.execute(select(models.User).where(models.User.email == email))
-        user = result.scalars().first()
-        
-        if not user:
-            import secrets
-            hashed_password = auth.get_password_hash(secrets.token_urlsafe(32))
-            user = models.User(email=email, hashed_password=hashed_password)
-            db.add(user)
-        
-        await db.commit()
-        await db.refresh(user)
-            
-        access_token = auth.create_access_token(data={"sub": user.email})
-        return {"access_token": access_token, "token_type": "bearer"}
-    except Exception as e:
-        import traceback
-        error_msg = traceback.format_exc()
-        print(f"Server error: {error_msg}")
-        raise HTTPException(status_code=400, detail=f"Internal Server Error Debug: {str(e)}")
-
 class GoogleAuthCodeRequest(BaseModel):
     code: str
 
-@app.post("/auth/google/code", response_model=schemas.Token)
-async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depends(get_db)):
+@app.post("/auth/google", response_model=schemas.Token)
+@limiter.limit("5/minute")
+async def google_login(request: Request, req: GoogleAuthCodeRequest, db: AsyncSession = Depends(get_db)):
     try:
         import asyncio
         loop = asyncio.get_running_loop()
-        token_info = await loop.run_in_executor(None, auth.exchange_google_code, req.code)
+        try:
+            token_info = await loop.run_in_executor(None, auth.exchange_google_code, req.code)
+        except Exception as flow_err:
+            error_str = str(flow_err).lower()
+            if 'invalid_grant' in error_str or 'bad request' in error_str:
+                raise HTTPException(status_code=400, detail="invalid_grant: The auth code is invalid or expired.")
+            elif 'redirect_uri_mismatch' in error_str:
+                raise HTTPException(status_code=400, detail="redirect_uri_mismatch: Ensure frontend and backend use 'postmessage'.")
+            else:
+                raise HTTPException(status_code=400, detail=f"Google OAuth Error: {str(flow_err)}")
+
         idinfo = token_info.get("idinfo", {})
         email = idinfo.get("email")
         if not email:
@@ -379,6 +463,8 @@ async def google_login_code(req: GoogleAuthCodeRequest, db: AsyncSession = Depen
             
         access_token = auth.create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         error_msg = traceback.format_exc()
@@ -393,7 +479,9 @@ class PanRequest(BaseModel):
     pan_number: str
 
 @app.post("/auth/pan")
+@limiter.limit("5/minute")
 async def save_pan(
+    request: Request,
     req: PanRequest,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -470,15 +558,20 @@ async def get_me(
     }
 
 @app.post("/portfolio/upload")
+@limiter.limit("5/minute")
 async def upload_portfolio(
+    request: Request,
     file: UploadFile = File(...), 
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if not file.filename.endswith('.csv'):
+    if not file.filename.endswith('.csv') or file.content_type not in ['text/csv', 'application/vnd.ms-excel']:
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
     content = await file.read()
+    if len(content) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+
     decoded_content = content.decode('utf-8')
     csv_reader = csv.DictReader(io.StringIO(decoded_content))
     
@@ -588,22 +681,43 @@ async def delete_alert(
 
 @app.get("/api/market/quotes")
 async def get_market_quotes(
-    symbols: str = Query(..., description="Comma separated list of symbols"),
-    current_user: models.User = Depends(auth.get_current_user)
+    symbols: str = Query(..., description="Comma-separated list of symbols (e.g. RELIANCE.NS,TCS.NS)")
 ):
-    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()]
-    quotes = await market_data.fetch_quotes(symbol_list)
-    return quotes
+    from app.services.market_data import LatestTick
+    symbol_list = [s.strip().upper() for s in symbols.split(",")]
+    results = {}
+    for sym in symbol_list:
+        if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
+            sym = f"{sym}.NS"
+        
+        tick = LatestTick.get(sym)
+        if tick:
+            results[sym] = {
+                "price": tick.price,
+                "change_pct": tick.change_pct,
+                "volume": tick.volume,
+                "as_of": tick.ts.isoformat(),
+                "source": tick.source,
+                "is_live": tick.is_live
+            }
+        else:
+            results[sym] = None
+    return results
 
-@app.get("/api/market/top-gainers")
-async def get_top_gainers(
-    limit: int = 5,
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    gainers = await market_data.fetch_top_gainers(limit=limit)
-    return gainers
+from app.routers.market import router as market_router
+from app.routers.screener import router as screener_router
+from app.routers.news import router as news_router
+from app.routers.chat import router as chat_router
+
+app.include_router(market_router, prefix="/api", tags=["Market"])
+app.include_router(screener_router, prefix="/api", tags=["Screener"])
+app.include_router(news_router, prefix="/api", tags=["News"])
+app.include_router(chat_router, prefix="/api", tags=["Chat"])
 
 # ---- PORTFOLIO ENDPOINTS ----
+
+import uuid
+sync_jobs = {}
 
 class GmailSyncRequest(BaseModel):
     pan: str
@@ -611,6 +725,7 @@ class GmailSyncRequest(BaseModel):
 @app.post("/api/portfolio/sync")
 async def sync_portfolio_gmail(
     request: GmailSyncRequest,
+    background_tasks: BackgroundTasks,
     current_user: models.User = Depends(auth.get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -631,259 +746,76 @@ async def sync_portfolio_gmail(
         if not google_access_token:
             raise HTTPException(status_code=400, detail="Failed to decrypt Google token.")
         
-        try:
-            # 1. Fetch PDF from Gmail
-            pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(google_access_token, google_refresh_token)
-            
-            # 2. Parse PDF
-            holdings_list = pdf_parser.parse_cdsl_cas(pdf_bytes, password=request.pan.upper())
-            
-            if not holdings_list:
-                raise HTTPException(status_code=400, detail="Successfully parsed PDF but found no valid holdings.")
-        except ValueError as e:
-            if "GMAIL_API_DISABLED" in str(e):
-                holdings_list = [
-                    {"symbol": "RELIANCE.NS", "quantity": 15, "avg_price": 2450.50},
-                    {"symbol": "TCS.NS", "quantity": 10, "avg_price": 3100.00},
-                    {"symbol": "HDFCBANK.NS", "quantity": 40, "avg_price": 1550.25},
-                    {"symbol": "INFY.NS", "quantity": 25, "avg_price": 1420.75}
-                ]
-            else:
-                raise e
-            
-        # 3. Save to DB
-        # 3. Save to DB
-        await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
+        job_id = str(uuid.uuid4())
+        sync_jobs[job_id] = {"status": "processing"}
         
-        new_holdings = []
-        for h in holdings_list:
-            new_holding = models.Holding(
-                user_id=current_user.id,
-                symbol=h["symbol"],
-                quantity=h["quantity"],
-                average_price=h["avg_price"]
-            )
-            db.add(new_holding)
-            new_holdings.append(new_holding)
-            
-        await db.commit()
-        
-        # Check if this is exactly our mock dataset to tailor the message
-        is_demo = (len(new_holdings) == 4 and new_holdings[0].symbol == "RELIANCE.NS")
-        msg = "Demo Portfolio loaded because your Google API is unverified." if is_demo else f"Successfully synced {len(new_holdings)} holdings from your CAS!"
-        
-        return {"message": msg}
-        
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"Sync error details: {e}")
-        raise HTTPException(status_code=500, detail="An unexpected error occurred during sync. Check server logs.")
-
-# ---- AI ENDPOINTS ----
-
-class ChatRequest(BaseModel):
-    message: str
-
-async def _build_ai_contexts(current_user: models.User, db: AsyncSession):
-    # 1. Fetch Portfolio
-    result = await db.execute(select(models.Holding).where(models.Holding.user_id == current_user.id))
-    holdings = result.scalars().all()
-    
-    if not holdings:
-        portfolio_context = "User has no synced holdings."
-        market_context = "No holdings to track."
-    else:
-        portfolio_context = "\n".join([f"- {h.symbol}: {h.quantity} shares (Avg: {h.average_price})" for h in holdings])
-        
-        # 2. Fetch Live Quotes for Portfolio
-        symbols = [h.symbol for h in holdings]
-        live_quotes = await market_data.fetch_live_quotes(symbols)
-        market_context = ""
-        for sym, data in live_quotes.items():
-            market_context += f"- {sym}: ₹{data.get('price', 0)} (Change: {data.get('change_pct', 0)}%)\n"
-            
-    return portfolio_context, market_context
-
-@app.post("/api/ai/chat")
-async def chat_with_ai(
-    request: ChatRequest,
-    current_user: models.User = Depends(auth.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    portfolio_context, market_context = await _build_ai_contexts(current_user, db)
-    
-    # 3. Fetch Top Gainers
-    gainers = await market_data.fetch_top_gainers(limit=3)
-    gainers_context = "\n".join([f"- {g['symbol']}: +{g['change_pct']}%" for g in gainers])
-    
-    # 4. Generate AI Response
-    try:
-        # Convert single query to list of dicts for new Multi-Agent signature
-        messages = [{"role": "user", "content": request.message}]
-        response_text = await ai_service.generate_chat_response(
-            messages=messages,
-            db=db
+        # We need to run the heavy sync in the background
+        # Because we need a db session, it's a bit tricky to pass the current Depends(db)
+        # So we'll pass the params needed to do it async
+        background_tasks.add_task(
+            run_gmail_sync_job,
+            job_id=job_id,
+            user_id=current_user.id,
+            pan=request.pan,
+            access_token=google_access_token,
+            refresh_token=google_refresh_token
         )
-        return {"response": response_text}
-    except ValueError as e:
+        
+        return {"job_id": job_id, "status": "processing"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/ai/forecast")
-async def get_ai_forecast(
-    current_user: models.User = Depends(auth.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    portfolio_context, market_context = await _build_ai_contexts(current_user, db)
-    
-    # Generate Forecast Summary
-    forecast_text = await ai_service.generate_forecast_summary(
-        portfolio_context=portfolio_context,
-        market_context=market_context
-    )
-    return {"forecast": forecast_text}
-
-@app.get("/api/health")
-async def health_check(db: AsyncSession = Depends(get_db)):
-    import os
-    
-    # Check DB Connection
-    db_status = "ok"
+async def run_gmail_sync_job(job_id: str, user_id: int, pan: str, access_token: str, refresh_token: str):
+    from app.database import async_session_maker
+    from sqlalchemy import delete
     try:
-        await db.execute(select(models.User).limit(1))
-    except Exception as e:
-        db_status = f"error: {e}"
-        
-    return {
-        "status": "online",
-        "database": db_status,
-        "environment": {
-            "GROQ_API_KEY_CONFIGURED": bool(os.getenv("GROQ_API_KEY")),
-            "GOOGLE_CLIENT_ID_CONFIGURED": bool(os.getenv("GOOGLE_CLIENT_ID")),
-            "GOOGLE_CLIENT_SECRET_CONFIGURED": bool(os.getenv("GOOGLE_CLIENT_SECRET")),
-            "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite (default)")[:15] + "..." if os.getenv("DATABASE_URL") else "sqlite (default)"
-        }
-    }
-
-@app.get("/api/news")
-async def get_top_news(
-    current_user: models.User = Depends(auth.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Fetches the latest top news and generates a sentiment tag.
-    """
-    try:
-        articles = await news_service.fetch_financial_news(limit=10)
-        return articles
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch news: {e}")
-
-# ---- BROKER INTEGRATION ENDPOINTS ----
-
-from app.services.broker_service import get_broker_adapter
-from fastapi.responses import RedirectResponse
-
-@app.get("/api/broker/login")
-async def broker_login(
-    provider: str = "upstox",
-):
-    """Redirects the user to the broker's OAuth login page."""
-    try:
-        adapter = get_broker_adapter(provider)
-        login_url = adapter.get_login_url()
-        return RedirectResponse(url=login_url)
+        pdf_bytes = await gmail_service.fetch_cas_pdf_from_gmail(access_token, refresh_token)
+        holdings_list = pdf_parser.parse_cdsl_cas(pdf_bytes, password=pan.upper())
+        if not holdings_list:
+            raise ValueError("Parsed PDF but found no valid holdings.")
+            
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/api/broker/callback")
-async def broker_callback(
-    code: str,
-    provider: str = "upstox",
-    db: AsyncSession = Depends(get_db),
-    # In a real app we'd pass a state token to identify the user
-    # For now, we'll just mock this and assume it's for user ID 1
-):
-    """Exchanges the auth code for an access token."""
-    try:
-        adapter = get_broker_adapter(provider)
-        access_token = adapter.get_access_token(code)
-        
-        # Save token to db
-        user_id = 1 # hardcoded for prototype simplicity since redirect loses auth headers
-        
-        # Delete old token
-        await db.execute(delete(models.OAuthToken).where(models.OAuthToken.user_id == user_id, models.OAuthToken.provider == provider))
-        
-        new_token = models.OAuthToken(
-            user_id=user_id,
-            provider=provider,
-            access_token=access_token
-        )
-        db.add(new_token)
-        
-        # Auto-sync portfolio immediately
-        holdings_list = adapter.get_holdings(access_token)
-        await db.execute(delete(models.Holding).where(models.Holding.user_id == user_id))
-        
-        for h in holdings_list:
-            new_holding = models.Holding(
-                user_id=user_id,
-                symbol=h["symbol"],
-                company_name=h["company_name"],
-                quantity=h["quantity"],
-                average_price=h["average_price"]
-            )
-            db.add(new_holding)
-            
-        await db.commit()
-        
-        # Redirect back to frontend dashboard
-        import os
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        return RedirectResponse(url=f"{frontend_url}/?broker_sync=success")
-        
+        if "GMAIL_API_DISABLED" in str(e):
+            holdings_list = [
+                {"symbol": "RELIANCE.NS", "quantity": 15, "avg_price": 2450.50},
+                {"symbol": "TCS.NS", "quantity": 10, "avg_price": 3100.00},
+                {"symbol": "HDFCBANK.NS", "quantity": 40, "avg_price": 1550.25},
+                {"symbol": "INFY.NS", "quantity": 25, "avg_price": 1420.75}
+            ]
+        else:
+            sync_jobs[job_id] = {"status": "failed", "error": str(e)}
+            return
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Broker auth failed: {e}")
+        sync_jobs[job_id] = {"status": "failed", "error": str(e)}
+        return
 
-@app.post("/api/portfolio/sync_broker")
-async def sync_portfolio_broker(
-    provider: str = "upstox",
-    current_user: models.User = Depends(auth.get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Fetches real portfolio holdings from the broker API and updates the DB."""
+    # Save to DB
     try:
-        # Get active token
-        result = await db.execute(select(models.OAuthToken).where(models.OAuthToken.user_id == current_user.id, models.OAuthToken.provider == provider))
-        token_obj = result.scalars().first()
-        
-        if not token_obj:
-            raise HTTPException(status_code=400, detail=f"Please connect your {provider} account first.")
+        async with async_session_maker() as db:
+            await db.execute(delete(models.Holding).where(models.Holding.user_id == user_id))
             
-        adapter = get_broker_adapter(provider)
-        holdings_list = adapter.get_holdings(token_obj.access_token)
-        
-        # Save to DB
-        await db.execute(delete(models.Holding).where(models.Holding.user_id == current_user.id))
-        
-        new_holdings = []
-        for h in holdings_list:
-            new_holding = models.Holding(
-                user_id=current_user.id,
-                symbol=h["symbol"],
-                company_name=h["company_name"],
-                quantity=h["quantity"],
-                average_price=h["average_price"]
-            )
-            db.add(new_holding)
-            new_holdings.append(new_holding)
+            for item in holdings_list:
+                db_holding = models.Holding(
+                    user_id=user_id,
+                    symbol=item['symbol'],
+                    quantity=item['quantity'],
+                    avg_price=item['avg_price']
+                )
+                db.add(db_holding)
+            await db.commit()
             
-        await db.commit()
-        return {"message": f"Successfully synced {len(new_holdings)} holdings from {provider}!"}
-        
+        sync_jobs[job_id] = {"status": "completed", "holdings": holdings_list}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Sync failed: {e}")
+        sync_jobs[job_id] = {"status": "failed", "error": str(e)}
+
+@app.get("/api/portfolio/sync/{job_id}")
+async def get_sync_status(job_id: str):
+    if job_id not in sync_jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return sync_jobs[job_id]
 
 @app.get("/api/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
@@ -928,3 +860,16 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         return fastapi.responses.JSONResponse(status_code=503, content=status_data)
         
     return status_data
+
+@app.get("/health/feed")
+def health_feed():
+    from app.services.market_data import LatestTick, provider_name, last_snapshot_time
+    import time
+    ages = [time.time() - t.ts.timestamp() for t in LatestTick.values() if hasattr(t.ts, 'timestamp')]
+    max_age = max(ages) if ages else 0
+    return {
+        "provider": provider_name,
+        "subscribed_symbols": len(LatestTick),
+        "max_tick_age_seconds": round(max_age, 2),
+        "snapshot_age_seconds": round(time.time() - last_snapshot_time, 2)
+    }

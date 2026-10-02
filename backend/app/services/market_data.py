@@ -1,199 +1,179 @@
-import yfinance as yf
-import asyncio
+import os
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
+import datetime
 import time
+import asyncio
+import yfinance as yf
 import math
 import logging
+import pytz
 
 logger = logging.getLogger(__name__)
 
-# Local in-memory cache to prevent yfinance rate limits
-# Format: { "key": {"data": ..., "expires_at": float} }
-_cache = {}
+class Tick(BaseModel):
+    symbol: str
+    price: float
+    change_pct: float
+    volume: float = 0.0
+    ts: datetime.datetime
+    source: str
+    is_live: bool
 
-NIFTY_50_SYMBOLS = [
-    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "ICICIBANK.NS", "INFY.NS",
-    "ITC.NS", "SBIN.NS", "BHARTIARTL.NS", "BAJFINANCE.NS", "LARSEN.NS",
-    "KOTAKBANK.NS", "AXISBANK.NS", "HCLTECH.NS", "ASIANPAINT.NS", "MARUTI.NS",
-    "SUNPHARMA.NS", "TITAN.NS", "ULTRACEMCO.NS", "BAJAJFINSV.NS", "TATAMOTORS.NS",
-    "NTPC.NS", "M&M.NS", "POWERGRID.NS", "NESTLEIND.NS", "TATASTEEL.NS",
-    "TECHM.NS", "HINDUNILVR.NS", "WIPRO.NS", "INDUSINDBK.NS", "GRASIM.NS",
-    "ONGC.NS", "HDFCLIFE.NS", "JSWSTEEL.NS", "ADANIENT.NS", "ADANIPORTS.NS",
-    "HINDALCO.NS", "DRREDDY.NS", "CIPLA.NS", "APOLLOHOSP.NS", "BRITANNIA.NS",
-    "COALINDIA.NS", "EICHERMOT.NS", "HEROMOTOCO.NS", "TATACONSUM.NS", "DIVISLAB.NS",
-    "BAJAJ-AUTO.NS", "UPL.NS", "BPCL.NS", "SHREECEM.NS", "TRENT.NS"
-]
+class MarketDataProvider(ABC):
+    @abstractmethod
+    async def get_quotes(self, symbols: List[str]) -> List[Tick]:
+        pass
 
-def get_from_cache(key: str):
-    if key in _cache:
-        item = _cache[key]
-        if time.time() < item["expires_at"]:
-            return item["data"]
-        else:
-            del _cache[key]
-    return None
+    async def start_stream(self, symbols: List[str], callback) -> None:
+        pass
 
-def set_to_cache(key: str, data: any, ttl_seconds: int = 60):
-    _cache[key] = {
-        "data": data,
-        "expires_at": time.time() + ttl_seconds
-    }
+class YFinanceProvider(MarketDataProvider):
+    async def get_quotes(self, symbols: List[str]) -> List[Tick]:
+        if not symbols:
+            return []
 
-async def fetch_quotes(symbols: list[str]) -> dict[str, dict]:
-    """
-    Fetch current price and percentage change for a list of symbols.
-    Returns: { "RELIANCE.NS": {"price": 2500.5, "change_pct": 1.2}, ... }
-    """
-    if not symbols:
-        return {}
+        formatted_symbols = []
+        for sym in symbols:
+            sym = sym.strip().upper()
+            if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
+                sym = f"{sym}.NS"
+            formatted_symbols.append(sym)
 
-    formatted_symbols = []
-    for sym in symbols:
-        sym = sym.strip().upper()
-        if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
-            sym = f"{sym}.NS"
-        formatted_symbols.append(sym)
-        
-    results = {}
-    missing_symbols = []
-    
-    for sym in formatted_symbols:
-        cached = get_from_cache(f"quote_{sym}")
-        if cached:
-            results[sym] = cached
-        else:
-            missing_symbols.append(sym)
-
-    if not missing_symbols:
-        return results
-
-    def _do_fetch():
-        tickers = " ".join(missing_symbols)
-        try:
-            # Fetch 1m data for current prices and 1d data for previous close, both in bulk
-            data_1m = yf.download(tickers, period="5d", interval="1m", progress=False)
-            data_daily = yf.download(tickers, period="5d", progress=False)
-            
-            if data_1m.empty or 'Close' not in data_1m:
-                data_1m = data_daily
-                if data_1m.empty or 'Close' not in data_1m:
-                    return {}
+        def _do_fetch():
+            tickers = " ".join(formatted_symbols)
+            try:
+                data_1m = yf.download(tickers, period="5d", interval="1m", progress=False)
+                data_daily = yf.download(tickers, period="5d", progress=False)
                 
-            closes_1m = data_1m['Close']
-            closes_daily = data_daily['Close'] if not data_daily.empty and 'Close' in data_daily else None
-            
-            fetched = {}
-            for sym in missing_symbols:
-                if sym in closes_1m:
-                    series_1m = closes_1m[sym] if len(missing_symbols) > 1 else closes_1m
-                    series_1m = series_1m.dropna()
-                    if len(series_1m) >= 1:
-                        current = float(series_1m.iloc[-1])
-                        prev = current # fallback
+                if data_1m.empty or 'Close' not in data_1m:
+                    data_1m = data_daily
+                    if data_1m.empty or 'Close' not in data_1m:
+                        return []
+                    
+                closes_1m = data_1m['Close']
+                vols_1m = data_1m['Volume'] if 'Volume' in data_1m else None
+                closes_daily = data_daily['Close'] if not data_daily.empty and 'Close' in data_daily else None
+                
+                ticks = []
+                for sym in formatted_symbols:
+                    if sym in closes_1m:
+                        series_1m = closes_1m[sym] if len(formatted_symbols) > 1 else closes_1m
+                        series_1m = series_1m.dropna()
                         
-                        if closes_daily is not None and sym in closes_daily:
-                            series_daily = closes_daily[sym] if len(missing_symbols) > 1 else closes_daily
-                            series_daily = series_daily.dropna()
-                            if len(series_daily) >= 2:
-                                prev = float(series_daily.iloc[-2])
-                                
-                        change = ((current - prev) / prev) * 100 if prev else 0.0
-                        if not math.isnan(current):
-                            fetched[sym] = {
-                                "price": float(current),
-                                "change_pct": float(change)
-                            }
-            return fetched
+                        vol_series = None
+                        if vols_1m is not None and sym in vols_1m:
+                            vol_series = vols_1m[sym] if len(formatted_symbols) > 1 else vols_1m
+                            vol_series = vol_series.dropna()
+
+                        if len(series_1m) >= 1:
+                            current = float(series_1m.iloc[-1])
+                            prev = current
+                            
+                            if closes_daily is not None and sym in closes_daily:
+                                series_daily = closes_daily[sym] if len(formatted_symbols) > 1 else closes_daily
+                                series_daily = series_daily.dropna()
+                                if len(series_daily) >= 2:
+                                    prev = float(series_daily.iloc[-2])
+                                    
+                            change = ((current - prev) / prev) * 100 if prev else 0.0
+                            vol = float(vol_series.iloc[-1]) if vol_series is not None and len(vol_series) > 0 else 0.0
+
+                            if not math.isnan(current):
+                                ticks.append(Tick(
+                                    symbol=sym.replace(".NS", ""),
+                                    price=current,
+                                    change_pct=change,
+                                    volume=vol,
+                                    ts=datetime.datetime.now(datetime.timezone.utc),
+                                    source="yfinance",
+                                    is_live=False
+                                ))
+                return ticks
+            except Exception as e:
+                logger.error(f"yfinance download error: {e}")
+                return []
+
+        return await asyncio.to_thread(_do_fetch)
+
+# Singleton setup
+provider_name = os.getenv("MARKET_PROVIDER", "yfinance")
+provider: MarketDataProvider
+if provider_name == "angel":
+    pass # Angel provider will be in Phase 7
+else:
+    provider = YFinanceProvider()
+
+# LatestTick in memory map
+LatestTick: Dict[str, Tick] = {}
+
+def is_market_open() -> bool:
+    ist = pytz.timezone('Asia/Kolkata')
+    now = datetime.datetime.now(ist)
+    if now.weekday() >= 5: # Sat/Sun
+        return False
+    # Holiday check mock (for now, assume open if weekday)
+    # Market hours 9:15 to 15:30
+    market_start = now.replace(hour=9, minute=15, second=0, microsecond=0)
+    market_end = now.replace(hour=15, minute=30, second=0, microsecond=0)
+    return market_start <= now <= market_end
+
+last_snapshot_time = 0.0
+
+async def market_data_poller(app):
+    global last_snapshot_time
+    from sqlalchemy.future import select
+    from app.database import SessionLocal
+    from app.models import Holding, QuoteSnapshot, User
+    from app.websocket_manager import manager
+    
+    while True:
+        try:
+            # Union of all symbols held or watched
+            symbols_to_fetch = set(["^NSEI", "^BSESN"])
+            async with SessionLocal() as db:
+                result = await db.execute(select(Holding.symbol))
+                symbols = result.scalars().all()
+                for s in symbols:
+                    symbols_to_fetch.add(s)
+            
+            # Fetch quotes
+            ticks = await provider.get_quotes(list(symbols_to_fetch))
+            
+            updates = []
+            for t in ticks:
+                LatestTick[t.symbol] = t
+                updates.append(t.model_dump(mode='json'))
+            
+            # Push to WebSocket
+            if updates:
+                await manager.broadcast_market_data(updates)
+            
+            # Write snapshots once per minute
+            now = time.time()
+            if now - last_snapshot_time >= 60 and ticks:
+                last_snapshot_time = now
+                async with SessionLocal() as db:
+                    for t in ticks:
+                        snapshot = QuoteSnapshot(
+                            symbol=t.symbol,
+                            ltp=t.price,
+                            prev_close=t.price / (1 + (t.change_pct/100)) if t.change_pct != -100 else t.price,
+                            change=t.price - (t.price / (1 + (t.change_pct/100))) if t.change_pct != -100 else 0,
+                            change_pct=t.change_pct,
+                            volume=t.volume,
+                            as_of=t.ts,
+                            source=t.source
+                        )
+                        # We should ideally use postgres UPSERT here, but we can do a simple merge
+                        await db.merge(snapshot)
+                    await db.commit()
+
+            if is_market_open():
+                await asyncio.sleep(20) # 20s interval during market hours
+            else:
+                await asyncio.sleep(60 * 10) # 10 minutes when closed
         except Exception as e:
-            logger.error(f"yfinance download error: {e}")
-            return {}
-
-    fetched_results = await asyncio.to_thread(_do_fetch)
-    
-    for sym, data in fetched_results.items():
-        results[sym] = data
-        set_to_cache(f"quote_{sym}", data, ttl_seconds=60)
-        
-    return results
-
-async def fetch_top_gainers(limit: int = 5) -> list[dict]:
-    """
-    Fetch top gainers from the predefined NIFTY 50 basket.
-    """
-    cache_key = "top_gainers"
-    cached = get_from_cache(cache_key)
-    if cached:
-        return cached[:limit]
-
-    quotes = await fetch_quotes(NIFTY_50_SYMBOLS)
-    if not quotes:
-        return []
-
-    # Format into list and sort by change_pct
-    gainers = []
-    for sym, data in quotes.items():
-        gainers.append({
-            "symbol": sym.replace(".NS", ""),
-            "price": data["price"],
-            "change_pct": data["change_pct"]
-        })
-        
-    # Sort descending
-    gainers.sort(key=lambda x: x["change_pct"], reverse=True)
-    
-    set_to_cache(cache_key, gainers, ttl_seconds=120)  # cache gainers for 2 mins
-    
-    return gainers[:limit]
-
-async def fetch_top_losers(limit: int = 5) -> list[dict]:
-    """
-    Fetch top losers from the predefined NIFTY 50 basket.
-    """
-    cache_key = "top_losers"
-    cached = get_from_cache(cache_key)
-    if cached:
-        return cached[:limit]
-
-    quotes = await fetch_quotes(NIFTY_50_SYMBOLS)
-    if not quotes:
-        return []
-
-    losers = []
-    for sym, data in quotes.items():
-        losers.append({
-            "symbol": sym.replace(".NS", ""),
-            "price": data["price"],
-            "change_pct": data["change_pct"]
-        })
-        
-    losers.sort(key=lambda x: x["change_pct"])
-    
-    set_to_cache(cache_key, losers, ttl_seconds=120)
-    
-    return losers[:limit]
-
-async def fetch_index_data(symbol: str) -> dict:
-    """
-    Fetch index data. symbol should be ^NSEI for NIFTY 50, ^BSESN for SENSEX
-    """
-    cache_key = f"index_{symbol}"
-    cached = get_from_cache(cache_key)
-    if cached:
-        return cached
-
-    mapping = {
-        "NIFTY 50": "^NSEI",
-        "SENSEX": "^BSESN"
-    }
-    actual_sym = mapping.get(symbol, symbol)
-    
-    quotes = await fetch_quotes([actual_sym])
-    if actual_sym in quotes:
-        data = {
-            "name": symbol,
-            "value": quotes[actual_sym]["price"],
-            "change": round((quotes[actual_sym]["change_pct"] / 100) * quotes[actual_sym]["price"], 2),
-            "change_pct": quotes[actual_sym]["change_pct"]
-        }
-        set_to_cache(cache_key, data, ttl_seconds=60)
-        return data
-    return {"name": symbol, "value": 0, "change": 0, "change_pct": 0}
+            logger.error(f"Error in market_data_poller: {e}")
+            await asyncio.sleep(30)

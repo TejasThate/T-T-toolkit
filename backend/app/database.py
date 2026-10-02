@@ -21,11 +21,26 @@ if DATABASE_URL.startswith("postgresql://") and "asyncpg" not in DATABASE_URL:
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
 
 connect_args = {}
+pool_kwargs = {}
+
 # SQLite requires check_same_thread=False
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
+else:
+    # Postgres pool settings
+    pool_kwargs = {
+        "pool_size": 5,
+        "max_overflow": 5,
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
 
-engine = create_async_engine(SQLALCHEMY_DATABASE_URL, echo=True, connect_args=connect_args)
+engine = create_async_engine(
+    SQLALCHEMY_DATABASE_URL, 
+    echo=True, 
+    connect_args=connect_args,
+    **pool_kwargs
+)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 Base = declarative_base()

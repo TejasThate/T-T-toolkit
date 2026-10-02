@@ -75,6 +75,12 @@ class ConnectionManager:
         else:
             await self.broadcast_memory(message)
 
+    async def broadcast_market_data(self, updates: List[Dict]):
+        if not updates:
+            return
+        payload = json.dumps({"type": "MARKET_UPDATE", "data": updates})
+        await self.broadcast(payload)
+
     async def redis_listener(self):
         """Background task to listen to Redis pub/sub and relay to local WebSockets."""
         if not self.use_redis:

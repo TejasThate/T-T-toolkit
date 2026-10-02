@@ -8,7 +8,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BrandLogo } from "./BrandLogo";
 import { useMarketDataSync } from "../hooks/useMarketDataSync";
-
+import { FlashingPrice } from './ui/FlashingPrice';
+import { LiveBadge } from './ui/LiveBadge';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -61,8 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!res.ok) throw new Error('Forecast fetch failed');
       return res.json();
     },
-    enabled: !!token,
-    refetchInterval: 5 * 60 * 1000 
+    enabled: !!token
   });
 
   // Market Data Hook is already defined above
@@ -105,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen bg-[#0e0f12] text-slate-200 overflow-hidden font-sans relative">
       {/* LEFT SIDEBAR (Nav) */}
-      <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl flex flex-col z-10 hidden md:flex">
+      <aside className="w-[260px] flex-shrink-0 border-r border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl max-md:backdrop-blur-none max-md:bg-[#0e0f12] flex flex-col z-10 hidden md:flex">
         <div className="p-6 flex items-center gap-3 border-b border-white/5">
           <BrandLogo size="sm" />
           <span className="font-bold text-lg tracking-tight">T&T Toolkit</span>
@@ -182,7 +182,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* RIGHT SIDEBAR (Widgets) */}
-      <aside className="w-[320px] flex-shrink-0 border-l border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl flex flex-col z-10 hidden lg:flex">
+      <aside className="w-[320px] flex-shrink-0 border-l border-white/5 bg-[#0e0f12]/80 backdrop-blur-xl max-md:backdrop-blur-none max-md:bg-[#0e0f12] flex flex-col z-10 hidden lg:flex">
         <div className="p-5 border-b border-white/5 flex items-center justify-between">
           <h2 className="font-semibold text-slate-200">Dashboard</h2>
           <div className="flex items-center gap-2">
@@ -265,7 +265,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Market Overview */}
           <section>
             <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Live Markets</h3>
+              <LiveBadge isLive={true} asOf={marketData?.as_of as string | undefined} />
+            </div>
               {marketLoading && <Loader2 className="w-3 h-3 animate-spin text-slate-500" />}
             </div>
             
@@ -281,7 +284,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         <div className="text-xs text-slate-500">Live Quote</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-mono font-bold text-white tracking-tight">₹{item?.price?.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+                        <FlashingPrice price={item?.price} className="text-sm font-mono font-bold text-white tracking-tight block" />
                         <div className={`text-xs font-medium flex items-center justify-end gap-0.5 ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
                           {isUp ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                           {Math.abs(item?.change_pct || 0).toFixed(2)}%

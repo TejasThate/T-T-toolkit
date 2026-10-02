@@ -6,8 +6,8 @@ import yfinance as yf
 import asyncio
 import math
 
-async def get_holdings(db: AsyncSession, user_id: int):
-    result = await db.execute(select(models.Holding).where(models.Holding.user_id == user_id))
+async def get_holdings(db: AsyncSession, user_id: int, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(models.Holding).where(models.Holding.user_id == user_id).limit(limit).offset(offset))
     return result.scalars().all()
 
 async def create_holding(db: AsyncSession, holding: schemas.HoldingCreate, user_id: int):
@@ -19,17 +19,34 @@ async def create_holding(db: AsyncSession, holding: schemas.HoldingCreate, user_
 
 async def delete_user_holdings(db: AsyncSession, user_id: int):
     # This deletes all existing holdings for a user to replace with new CSV
-    result = await db.execute(select(models.Holding).where(models.Holding.user_id == user_id))
+    result = await db.execute(select(models.Holding).where(models.Holding.user_id == user_id).limit(limit).offset(offset))
     holdings = result.scalars().all()
     for holding in holdings:
         await db.delete(holding)
     await db.commit()
 
-async def get_news_articles(db: AsyncSession, limit: int = 50):
-    result = await db.execute(select(models.NewsArticle).order_by(models.NewsArticle.published_at.desc()).limit(limit))
+async def get_news_articles(db: AsyncSession, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(models.NewsArticle).order_by(models.NewsArticle.published_at.desc()).limit(limit).offset(offset))
     return result.scalars().all()
 
 async def update_live_prices(db: AsyncSession, holdings: list):
+    if not holdings:
+        return []
+    from app.services.market_data import LatestTick
+    updated = False
+    for h in holdings:
+        sym = h.symbol.strip()
+        if not sym.endswith(".NS") and not sym.endswith(".BO"):
+            sym = f"{sym}.NS"
+        tick = LatestTick.get(sym)
+        if tick and not math.isnan(tick.price):
+            h.current_price = tick.price
+            updated = True
+    if updated:
+        await db.commit()
+    return holdings
+    
+async def _old_update_live_prices(db: AsyncSession, holdings: list):
     if not holdings:
         return []
     
@@ -82,8 +99,8 @@ async def create_chat_session(db: AsyncSession, user_id: int, title: str = None)
     await db.refresh(db_session)
     return db_session
 
-async def get_chat_sessions(db: AsyncSession, user_id: int):
-    result = await db.execute(select(models.ChatSession).where(models.ChatSession.user_id == user_id).order_by(models.ChatSession.updated_at.desc()))
+async def get_chat_sessions(db: AsyncSession, user_id: int, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(models.ChatSession).where(models.ChatSession.user_id == user_id).order_by(models.ChatSession.updated_at.desc()).limit(limit).offset(offset))
     return result.scalars().all()
 
 async def create_chat_message(db: AsyncSession, session_id: int, message: schemas.ChatMessageCreate):
@@ -100,8 +117,8 @@ async def create_chat_message(db: AsyncSession, session_id: int, message: schema
     await db.refresh(db_message)
     return db_message
 
-async def get_chat_messages(db: AsyncSession, session_id: int):
-    result = await db.execute(select(models.ChatMessage).where(models.ChatMessage.session_id == session_id).order_by(models.ChatMessage.created_at.asc()))
+async def get_chat_messages(db: AsyncSession, session_id: int, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(models.ChatMessage).where(models.ChatMessage.session_id == session_id).order_by(models.ChatMessage.created_at.asc()).limit(limit).offset(offset))
     return result.scalars().all()
 
 async def create_alert(db: AsyncSession, user_id: int, alert: schemas.AlertCreate):
@@ -111,8 +128,8 @@ async def create_alert(db: AsyncSession, user_id: int, alert: schemas.AlertCreat
     await db.refresh(db_alert)
     return db_alert
 
-async def get_alerts(db: AsyncSession, user_id: int):
-    result = await db.execute(select(models.Alert).where(models.Alert.user_id == user_id).order_by(models.Alert.created_at.desc()))
+async def get_alerts(db: AsyncSession, user_id: int, limit: int = 50, offset: int = 0):
+    result = await db.execute(select(models.Alert).where(models.Alert.user_id == user_id).order_by(models.Alert.created_at.desc()).limit(limit).offset(offset))
     return result.scalars().all()
 
 async def delete_alert(db: AsyncSession, alert_id: int, user_id: int):

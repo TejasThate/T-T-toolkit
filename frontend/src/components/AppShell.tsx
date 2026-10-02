@@ -15,11 +15,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const login = useGoogleLogin({
     flow: 'auth-code',
-    scope: 'https://www.googleapis.com/auth/gmail.readonly',
+    scope: 'openid email profile',
     onSuccess: async codeResponse => {
       try {
         setIsLoginLoading(true);
-        const res = await fetch(`${API_BASE}/auth/google/code`, {
+        const res = await fetch(`${API_BASE}/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: codeResponse.code })

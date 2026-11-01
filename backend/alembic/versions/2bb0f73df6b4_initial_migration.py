@@ -53,8 +53,8 @@ def upgrade() -> None:
     
     with op.batch_alter_table('news_items', schema=None) as batch_op:
         indexes = [idx['name'] for idx in sa.inspect(conn).get_indexes('news_items')]
-        if 'idx_news_items_time_symbol' not in indexes:
-            batch_op.create_index('idx_news_items_time_symbol', ['published_at', 'symbols'], unique=False)
+        if 'idx_news_items_time' not in indexes:
+            batch_op.create_index('idx_news_items_time', ['published_at'], unique=False)
 
     if 'instruments' not in tables:
         op.create_table(
@@ -82,7 +82,11 @@ def downgrade() -> None:
 
     if 'news_items' in tables:
         with op.batch_alter_table('news_items', schema=None) as batch_op:
-            batch_op.drop_index('idx_news_items_time_symbol')
+            indexes = [idx['name'] for idx in inspector.get_indexes('news_items')]
+            if 'idx_news_items_time' in indexes:
+                batch_op.drop_index('idx_news_items_time')
+            if 'idx_news_items_time_symbol' in indexes:
+                batch_op.drop_index('idx_news_items_time_symbol')
         op.drop_table('news_items')
 
     if 'chat_messages' in tables:

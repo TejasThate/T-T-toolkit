@@ -173,7 +173,7 @@ class NewsItem(Base):
     title = Column(String)
     source = Column(String)
     url = Column(String)
-    published_at = Column(DateTime)
+    published_at = Column(DateTime, index=True)
     snippet = Column(Text, nullable=True)
     symbols = Column(JSON, nullable=True) # Array of symbols
     sentiment = Column(Float, nullable=True)
@@ -184,10 +184,6 @@ class NewsItem(Base):
     reason = Column(String, nullable=True)
     scored_by = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
-
-    __table_args__ = (
-        Index('idx_news_items_time_symbol', 'published_at', 'symbols'),
-    )
 
 class TechnicalAlert(Base):
     __tablename__ = "technical_alerts"

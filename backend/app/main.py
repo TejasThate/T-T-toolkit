@@ -863,13 +863,16 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 
 @app.get("/health/feed")
 def health_feed():
-    from app.services.market_data import LatestTick, provider_name, last_snapshot_time
+    from app.services.market_data import LatestTick, provider_name, last_snapshot_time, provider
     import time
     ages = [time.time() - t.ts.timestamp() for t in LatestTick.values() if hasattr(t.ts, 'timestamp')]
     max_age = max(ages) if ages else 0
-    return {
+    feed_data = {
         "provider": provider_name,
         "subscribed_symbols": len(LatestTick),
         "max_tick_age_seconds": round(max_age, 2),
         "snapshot_age_seconds": round(time.time() - last_snapshot_time, 2)
     }
+    if hasattr(provider, "get_provider_status"):
+        feed_data["angel_status"] = provider.get_provider_status()
+    return feed_data

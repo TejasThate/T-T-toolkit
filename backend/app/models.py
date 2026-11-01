@@ -122,7 +122,9 @@ from sqlalchemy import Date, Boolean, JSON
 class Instrument(Base):
     __tablename__ = "instruments"
     symbol = Column(String, primary_key=True, index=True)
-    name = Column(String)
+    token = Column(String, index=True, nullable=True)
+    exchange = Column(String, default="NSE", nullable=True)
+    name = Column(String, nullable=True)
     isin = Column(String, nullable=True)
     sector = Column(String, nullable=True)
     industry = Column(String, nullable=True)

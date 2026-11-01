@@ -97,24 +97,32 @@ class YFinanceProvider(MarketDataProvider):
 
         return await asyncio.to_thread(_do_fetch)
 
+# Lazy/conditional import of AngelProvider to avoid circular imports
+def get_provider() -> MarketDataProvider:
+    p_name = os.getenv("MARKET_PROVIDER", "angel").lower()
+    if p_name == "angel":
+        try:
+            from app.providers.angel_provider import AngelProvider
+            return AngelProvider()
+        except Exception as e:
+            logger.warning(f"Could not initialize AngelProvider, falling back to YFinance: {e}")
+            return YFinanceProvider()
+    return YFinanceProvider()
+
 # Singleton setup
-provider_name = os.getenv("MARKET_PROVIDER", "yfinance")
-provider: MarketDataProvider
-if provider_name == "angel":
-    pass # Angel provider will be in Phase 7
-else:
-    provider = YFinanceProvider()
+provider_name = os.getenv("MARKET_PROVIDER", "angel").lower()
+provider = get_provider()
 
 # LatestTick in memory map
 LatestTick: Dict[str, Tick] = {}
 
 def is_market_open() -> bool:
+    if hasattr(provider, "is_market_open"):
+        return provider.is_market_open()
     ist = pytz.timezone('Asia/Kolkata')
     now = datetime.datetime.now(ist)
     if now.weekday() >= 5: # Sat/Sun
         return False
-    # Holiday check mock (for now, assume open if weekday)
-    # Market hours 9:15 to 15:30
     market_start = now.replace(hour=9, minute=15, second=0, microsecond=0)
     market_end = now.replace(hour=15, minute=30, second=0, microsecond=0)
     return market_start <= now <= market_end
@@ -127,18 +135,30 @@ async def market_data_poller(app):
     from app.database import SessionLocal
     from app.models import Holding, QuoteSnapshot, User
     from app.websocket_manager import manager
+    from app.providers.angel_provider import AngelProvider
+
+    # Load scrip master in background if using Angel
+    if isinstance(provider, AngelProvider):
+        asyncio.create_task(asyncio.to_thread(provider.load_instruments_from_scrip_master))
     
     while True:
         try:
             # Union of all symbols held or watched
-            symbols_to_fetch = set(["^NSEI", "^BSESN"])
+            symbols_to_fetch = set(["^NSEI", "^BSESN", "RELIANCE", "TCS", "HDFCBANK", "INFY"])
             async with SessionLocal() as db:
                 result = await db.execute(select(Holding.symbol))
                 symbols = result.scalars().all()
                 for s in symbols:
                     symbols_to_fetch.add(s)
             
-            # Fetch quotes
+            # Start Angel stream if not yet started
+            if isinstance(provider, AngelProvider) and not provider.stream_active and provider.session.is_logged_in():
+                def on_tick_cb(tick: Tick):
+                    LatestTick[tick.symbol] = tick
+                    asyncio.create_task(manager.broadcast_market_data([tick.model_dump(mode='json')]))
+                provider.start_stream(list(symbols_to_fetch), callback=on_tick_cb)
+
+            # Fetch quotes (reads Angel REST or yfinance fallback)
             ticks = await provider.get_quotes(list(symbols_to_fetch))
             
             updates = []
@@ -166,7 +186,6 @@ async def market_data_poller(app):
                             as_of=t.ts,
                             source=t.source
                         )
-                        # We should ideally use postgres UPSERT here, but we can do a simple merge
                         await db.merge(snapshot)
                     await db.commit()
 

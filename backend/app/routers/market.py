@@ -115,3 +115,24 @@ async def get_quick_quote(symbol: str):
         "sparkline": sparkline[-30:] # last 30 days
     }
     return get_standard_envelope(quote)
+
+
+@router.get("/search")
+async def search_symbols(query: str = Query(..., min_length=1, description="Symbol or company name to search")):
+    """
+    Fast symbol search backed by Angel One ScripMaster (2,700+ NSE equities).
+    """
+    from app.services.market_data import provider
+    try:
+        from app.providers.angel_provider import AngelProvider
+        if isinstance(provider, AngelProvider):
+            results = provider.search_instruments(query)
+            return {"query": query, "count": len(results), "results": results}
+    except Exception as e:
+        logger.warning(f"Error in search_symbols: {e}")
+        
+    return {
+        "query": query,
+        "count": 1,
+        "results": [{"symbol": query.upper(), "tradingsymbol": f"{query.upper()}-EQ", "name": query.upper(), "exchange": "NSE"}]
+    }

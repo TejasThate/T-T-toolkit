@@ -16,7 +16,7 @@ export default function NewsPage() {
     
   });
 
-  const news = newsData?.data || [];
+  const news = newsData?.data || newsData?.news || [];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#0e0f12]">

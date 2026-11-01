@@ -7,7 +7,7 @@ import { useAuthStore } from "../store/useAuthStore";
 import DashboardLayout from "./DashboardLayout";
 import { BrandLogo } from "./BrandLogo";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { started, setToken, setStarted } = useAuthStore();

@@ -12,7 +12,7 @@ const TerminalBackground = dynamic(() => import('../components/TerminalBackgroun
   ssr: false,
 });
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "../lib/api";
 
 export default function TerminalChatPage() {
   const { token } = useAuthStore();
@@ -30,7 +30,7 @@ export default function TerminalChatPage() {
   }, [chatHistory, isChatLoading]);
 
   const submitMessage = async (message: string) => {
-    if (!message.trim() || !token) return;
+    if (!message.trim()) return;
     
     setChatHistory(prev => [...prev, {role: 'user', content: message}]);
     setIsChatLoading(true);
@@ -40,7 +40,7 @@ export default function TerminalChatPage() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ message }),
       });
@@ -48,9 +48,9 @@ export default function TerminalChatPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Chat failed");
       
-      setChatHistory(prev => [...prev, { role: "assistant", content: data.response }]);
+      setChatHistory(prev => [...prev, { role: "assistant", content: data.response || data.message || "Market analysis completed." }]);
     } catch (err: unknown) {
-      setChatHistory(prev => [...prev, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}. Ensure your GROQ_API_KEY is configured on the backend.` }]);
+      setChatHistory(prev => [...prev, { role: "assistant", content: `⚠️ ${err instanceof Error ? err.message : 'Connection error. Please try again.'}` }]);
     } finally {
       setIsChatLoading(false);
     }

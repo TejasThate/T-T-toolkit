@@ -134,12 +134,12 @@ export default function ScreenerPage() {
                     <div>
                       <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Indicator</label>
                       <select 
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
+                        className="w-full bg-[#141824] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
                         value={cond.indicator}
                         onChange={(e) => updateCondition(cond.id, 'indicator', e.target.value)}
                       >
                         {INDICATORS.map(ind => (
-                          <option key={ind.value} value={ind.value}>{ind.label}</option>
+                          <option key={ind.value} value={ind.value} className="bg-[#141824] text-white py-1">{ind.label}</option>
                         ))}
                       </select>
                     </div>
@@ -148,12 +148,12 @@ export default function ScreenerPage() {
                       <div className="w-1/2">
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Operator</label>
                         <select 
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
+                          className="w-full bg-[#141824] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
                           value={cond.operator}
                           onChange={(e) => updateCondition(cond.id, 'operator', e.target.value)}
                         >
                           {OPERATORS.map(op => (
-                            <option key={op.value} value={op.value}>{op.label}</option>
+                            <option key={op.value} value={op.value} className="bg-[#141824] text-white py-1">{op.label}</option>
                           ))}
                         </select>
                       </div>
@@ -161,7 +161,7 @@ export default function ScreenerPage() {
                         <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Value</label>
                         <input 
                           type="text"
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
+                          className="w-full bg-[#141824] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#38BDF8]"
                           value={cond.value}
                           onChange={(e) => updateCondition(cond.id, 'value', e.target.value)}
                           placeholder="e.g. 50 or SMA_200"

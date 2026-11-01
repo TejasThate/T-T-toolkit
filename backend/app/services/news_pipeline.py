@@ -8,7 +8,6 @@ import asyncio
 import httpx
 from app.database import SessionLocal
 from app.models import NewsItem
-from langchain_groq import ChatGroq
 from pydantic import BaseModel, Field
 from app.websocket_manager import manager
 
@@ -30,7 +29,7 @@ class BatchNewsAnalysis(BaseModel):
 
 async def fetch_feed(source: str, url: str) -> list:
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.get(url)
             feed = feedparser.parse(response.content)
             return [(source, entry) for entry in feed.entries[:10]]
@@ -38,17 +37,38 @@ async def fetch_feed(source: str, url: str) -> list:
         print(f"[News Pipeline] Error fetching feed {source}: {e}")
         return []
 
+def fallback_sentiment_and_cat(title: str):
+    t = title.lower()
+    bullish_keywords = ["surge", "jump", "rally", "profit", "gain", "high", "rise", "soar", "record", "growth"]
+    bearish_keywords = ["drop", "plunge", "fall", "loss", "crash", "down", "decline", "weak", "concern"]
+    
+    sentiment = 0.0
+    if any(k in t for k in bullish_keywords):
+        sentiment = 0.6
+    elif any(k in t for k in bearish_keywords):
+        sentiment = -0.6
+        
+    category = "General"
+    if any(k in t for k in ["quarter", "q1", "q2", "q3", "q4", "result", "revenue", "profit", "ebitda"]):
+        category = "Earnings"
+    elif any(k in t for k in ["rbi", "inflation", "gdp", "repo rate", "fed", "macro", "economy"]):
+        category = "Macro"
+    elif any(k in t for k in ["acquisition", "merger", "stake", "buyout", "deal", "takeover"]):
+        category = "M&A"
+    elif any(k in t for k in ["sebi", "rbi notice", "tax", "court", "investigation", "penalty"]):
+        category = "Regulatory"
+        
+    # Extract likely symbol if mentioned
+    symbols = []
+    known = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "BHARTIARTL", "ITC", "LT", "TATAMOTORS"]
+    for s in known:
+        if s.lower() in t:
+            symbols.append(s)
+            
+    return symbols, sentiment, 6.0, category, "Market news update"
+
 async def run_news_pipeline():
     print("[News Pipeline] Starting RSS ingestion...")
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if not groq_api_key:
-        print("[News Pipeline] GROQ_API_KEY missing. Skipping AI scoring.")
-        return
-
-    # Phase 3 model routing (FAST_MODEL)
-    model_name = os.getenv("FAST_MODEL", "llama-3.3-70b-versatile")
-    llm = ChatGroq(model=model_name, temperature=0.1, max_tokens=2048, api_key=groq_api_key)
-    structured_llm = llm.with_structured_output(BatchNewsAnalysis)
     
     # Fetch all feeds in parallel
     tasks = [fetch_feed(source, url) for source, url in FEEDS.items()]
@@ -57,6 +77,10 @@ async def run_news_pipeline():
     all_entries = []
     for fr in feed_results:
         all_entries.extend(fr)
+        
+    if not all_entries:
+        print("[News Pipeline] No entries fetched from feeds.")
+        return
         
     async with SessionLocal() as db:
         new_items_data = []
@@ -73,24 +97,23 @@ async def run_news_pipeline():
                 continue
                 
             soup = BeautifulSoup(entry.get('summary', ''), "html.parser")
-            clean_text = soup.get_text()
+            clean_snippet = soup.get_text()[:300]
             
-            dt = datetime.now(timezone.utc)
+            # published date
+            published_at = datetime.now(timezone.utc)
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                from time import mktime
-                dt = datetime.fromtimestamp(mktime(entry.published_parsed))
-
+                published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                
             item_data = {
                 "url_hash": url_hash,
                 "title": entry.title,
                 "source": source,
                 "url": entry.link,
-                "published_at": dt,
-                "snippet": clean_text[:200]
+                "published_at": published_at,
+                "snippet": clean_snippet
             }
             new_items_data.append(item_data)
-            
-            batch_prompt_text += f"Hash: {url_hash}\nTitle: {entry.title}\nSummary: {clean_text}\n---\n"
+            batch_prompt_text += f"url_hash: {url_hash}\nTitle: {entry.title}\nSnippet: {clean_snippet}\n---\n"
             
             if len(new_items_data) >= 20: # Batch of 20
                 break
@@ -99,53 +122,68 @@ async def run_news_pipeline():
             print("[News Pipeline] No new items.")
             return
             
-        print(f"[News Pipeline] Analyzing {len(new_items_data)} new items in batch.")
+        print(f"[News Pipeline] Processing {len(new_items_data)} new items.")
         
-        try:
-            analysis: BatchNewsAnalysis = await structured_llm.ainvoke(
-                f"Analyze these Indian financial news headlines and extract the requested fields for each. Match them by 'url_hash'.\n\n{batch_prompt_text}"
-            )
-            
-            analysis_map = {res.url_hash: res for res in analysis.results}
-            
-            ws_updates = []
-            
-            for item in new_items_data:
-                res = analysis_map.get(item["url_hash"])
-                if res:
-                    new_news = NewsItem(
-                        url_hash=item["url_hash"],
-                        title=item["title"],
-                        source=item["source"],
-                        url=item["url"],
-                        published_at=item["published_at"],
-                        snippet=item["snippet"],
-                        symbols=res.symbols,
-                        sentiment=res.sentiment,
-                        impact=res.impact,
-                        category=res.category,
-                        reason=res.reason
-                    )
-                    db.add(new_news)
-                    
-                    ws_updates.append({
-                        "title": new_news.title,
-                        "source": new_news.source,
-                        "url": new_news.url,
-                        "symbols": new_news.symbols,
-                        "sentiment": new_news.sentiment,
-                        "impact": new_news.impact,
-                        "category": new_news.category,
-                        "reason": new_news.reason,
-                        "published_at": new_news.published_at.isoformat()
-                    })
-                    
-            await db.commit()
-            print(f"[News Pipeline] Saved {len(ws_updates)} items.")
-            
-            # Push to clients
-            if ws_updates:
-                await manager.broadcast(json.dumps({"type": "NEWS_UPDATE", "data": ws_updates}))
+        analysis_map = {}
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key and "mock" not in groq_api_key:
+            try:
+                from langchain_groq import ChatGroq
+                model_name = os.getenv("FAST_MODEL", "llama-3.3-70b-versatile")
+                llm = ChatGroq(model=model_name, temperature=0.1, max_tokens=2048, api_key=groq_api_key)
+                structured_llm = llm.with_structured_output(BatchNewsAnalysis)
+                analysis: BatchNewsAnalysis = await structured_llm.ainvoke(
+                    f"Analyze these Indian financial news headlines and extract the requested fields for each. Match them by 'url_hash'.\n\n{batch_prompt_text}"
+                )
+                analysis_map = {res.url_hash: res for res in analysis.results}
+            except Exception as e:
+                print(f"[News Pipeline] AI structured scoring error: {e}. Using rule-based fallback.")
                 
-        except Exception as e:
-            print(f"[News Pipeline] Batch AI analysis failed: {e}")
+        ws_updates = []
+        for item in new_items_data:
+            res = analysis_map.get(item["url_hash"])
+            if res:
+                symbols = res.symbols
+                sentiment = res.sentiment
+                impact = res.impact
+                category = res.category
+                reason = res.reason
+            else:
+                symbols, sentiment, impact, category, reason = fallback_sentiment_and_cat(item["title"])
+                
+            new_news = NewsItem(
+                url_hash=item["url_hash"],
+                title=item["title"],
+                source=item["source"],
+                url=item["url"],
+                published_at=item["published_at"],
+                snippet=item["snippet"],
+                symbols=symbols,
+                sentiment=sentiment,
+                impact=impact,
+                category=category,
+                reason=reason
+            )
+            db.add(new_news)
+            
+            ws_updates.append({
+                "title": new_news.title,
+                "source": new_news.source,
+                "url": new_news.url,
+                "symbols": new_news.symbols,
+                "sentiment": new_news.sentiment,
+                "impact": new_news.impact,
+                "category": new_news.category,
+                "reason": new_news.reason,
+                "published_at": new_news.published_at.isoformat()
+            })
+            
+        await db.commit()
+        print(f"[News Pipeline] Successfully saved {len(ws_updates)} items to database.")
+        
+        # Push to clients
+        if ws_updates:
+            try:
+                await manager.broadcast(json.dumps({"type": "NEWS_UPDATE", "data": ws_updates}))
+            except Exception as e:
+                print(f"[News Pipeline] Broadcast error: {e}")

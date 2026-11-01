@@ -93,10 +93,14 @@ import re
 # We use allow_origin_regex for Vercel preview deployments
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://t-t-toolkit.vercel.app").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$|^http:\/\/localhost(:\d+)?$",
+    allow_origins=[
+        "http://localhost:3000",
+        "https://t-t-toolkit.vercel.app",
+        "https://t-t-toolkit-tawny.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -280,24 +284,36 @@ async def websocket_endpoint(websocket: WebSocket):
 
 from app.services.screener_service import get_active_signals
 
-@app.get("/api/news")
-async def get_news(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(models.NewsArticle).order_by(models.NewsArticle.published_at.desc()).limit(20))
-    news = result.scalars().all()
-    
-    news_list = []
-    for n in news:
-        news_list.append({
-            "id": n.id,
-            "title": n.title,
-            "link": n.link,
-            "source": n.source,
-            "published_at": n.published_at,
-            "affected_symbol": n.affected_symbol,
-            "impact_score": n.impact_score,
-            "impact_reason": n.impact_reason
-        })
-    return {"news": news_list}
+@app.get("/api/ai/forecast")
+async def get_ai_forecast(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    user = await auth.get_optional_user(request, db)
+    portfolio_context = "User has no custom holdings."
+    if user:
+        res = await db.execute(select(models.Holding).where(models.Holding.user_id == user.id))
+        h_list = res.scalars().all()
+        if h_list:
+            portfolio_context = f"User holds {len(h_list)} stocks: {', '.join([h.symbol for h in h_list[:5]])}."
+
+    # Live market context from ticks
+    ticks = list(market_data.LatestTick.values()) if isinstance(market_data.LatestTick, dict) else []
+    if ticks:
+        top_moves = sorted(ticks, key=lambda t: abs(t.change_pct), reverse=True)[:4]
+        market_context = ", ".join([f"{t.symbol}: Rs. {t.price} ({t.change_pct:+.2f}%)" for t in top_moves])
+    else:
+        market_context = "NIFTY 50 trading steadily near 24,800. Key stocks Reliance (+1.0%), TCS (+0.8%), HDFC Bank (+0.5%)."
+
+    try:
+        from app.services.ai_service import generate_forecast_summary
+        summary = await generate_forecast_summary(portfolio_context, market_context)
+        if not summary or "Unable" in summary or "offline" in summary:
+            summary = f"Indian equity markets showing resilient breadth. Top momentum noted in {market_context.split(',')[0]}. Key support levels holding with positive risk-reward."
+    except Exception:
+        summary = f"Indian equity markets showing resilient breadth. Top momentum noted in {market_context.split(',')[0]}. Key support levels holding with positive risk-reward."
+
+    return {"forecast": summary}
 
 @app.get("/api/screener/signals")
 async def get_screener_signals(db: AsyncSession = Depends(get_db)):

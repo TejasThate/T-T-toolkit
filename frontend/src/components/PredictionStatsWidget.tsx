@@ -10,7 +10,7 @@ interface PredictionStats {
   retrain_status: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 export function PredictionStatsWidget() {
   const [stats, setStats] = useState<PredictionStats | null>(null);

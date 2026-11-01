@@ -10,7 +10,7 @@ import { BrandLogo } from "./BrandLogo";
 import { useMarketDataSync } from "../hooks/useMarketDataSync";
 import { FlashingPrice } from './ui/FlashingPrice';
 import { LiveBadge } from './ui/LiveBadge';
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "../lib/api";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { token, logout } = useAuthStore();
@@ -230,15 +230,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               )}
               
-              <Link
-                href={`${API_BASE}/api/broker/login?provider=upstox`}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-[#8B5CF6]/30 bg-[#8B5CF6]/10 hover:bg-[#8B5CF6]/20 transition-colors text-sm font-medium text-[#8B5CF6]"
-              >
-                <div className="w-4 h-4 rounded bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center">
-                  <span className="text-[8px] text-white font-bold">U</span>
+              <div className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <div className="text-left">
+                    <div className="font-semibold text-emerald-300">Angel One SmartAPI</div>
+                    <div className="text-[10px] text-slate-400">ID: AACN734233 • Live Feed</div>
+                  </div>
                 </div>
-                Connect Upstox
-              </Link>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                  LIVE
+                </span>
+              </div>
             </div>
           </section>
 

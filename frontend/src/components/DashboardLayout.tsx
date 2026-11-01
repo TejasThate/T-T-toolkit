@@ -102,13 +102,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const discoverItems = [
     { name: "IPO", icon: <ArrowUpRight size={18} />, path: "/ipo", badge: "5 open" },
-    { name: "Bonds", icon: <LayoutDashboard size={18} />, path: "#", badge: "1 open" },
-    { name: "ETFs", icon: <TrendingUp size={18} />, path: "#" },
-    { name: "Intraday Screener", icon: <Filter size={18} />, path: "#" },
-    { name: "Stocks SIP", icon: <Terminal size={18} />, path: "#" },
-    { name: "MTF stocks", icon: <TrendingUp size={18} />, path: "#" },
-    { name: "Events calendar", icon: <Bell size={18} />, path: "#" },
-    { name: "All Stocks screener", icon: <Filter size={18} />, path: "#" }
+    { name: "Bonds", icon: <LayoutDashboard size={18} />, path: "/bonds", badge: "1 open" },
+    { name: "ETFs", icon: <TrendingUp size={18} />, path: "/etfs" },
+    { name: "Intraday Screener", icon: <Filter size={18} />, path: "/intraday-screener" },
+    { name: "Stocks SIP", icon: <Terminal size={18} />, path: "/stocks-sip" },
+    { name: "MTF stocks", icon: <TrendingUp size={18} />, path: "/screener" },
+    { name: "Events calendar", icon: <Bell size={18} />, path: "/alerts" },
+    { name: "All Stocks screener", icon: <Filter size={18} />, path: "/screener" }
   ];
 
   return (
@@ -247,7 +247,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </span>
                   <div className="text-left">
                     <div className="font-semibold text-emerald-300">Angel One SmartAPI</div>
-                    <div className="text-[10px] text-slate-400">ID: AACN734233 • Live Feed</div>
+                    <div className="text-[10px] text-slate-400">Connected • Real-time NSE Feed</div>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">

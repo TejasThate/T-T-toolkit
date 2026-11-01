@@ -128,8 +128,14 @@ async def market_data_poller(app):
     
     while True:
         try:
-            # Union of all symbols held or watched
-            symbols_to_fetch = set(["^NSEI", "^BSESN", "RELIANCE", "TCS", "HDFCBANK", "INFY"])
+            # Broad basket of large, mid, and small cap Indian stocks
+            symbols_to_fetch = set([
+                "^NSEI", "^BSESN", "^NSEBANK",
+                "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "BHARTIARTL", "SBIN", "ITC", 
+                "LT", "TATAMOTORS", "BAJFINANCE", "MARUTI", "SUNPHARMA", "TITAN", "AXISBANK",
+                "ZOMATO", "TRENT", "SUZLON", "BHEL", "MAZDOCK", "BEL", "HAL", "DIXON", 
+                "POLYCAB", "IRFC", "RVNL", "IREDA", "PERSISTENT", "COFORGE", "TATASTEEL"
+            ])
             async with SessionLocal() as db:
                 result = await db.execute(select(Holding.symbol))
                 symbols = result.scalars().all()

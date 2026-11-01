@@ -13,7 +13,15 @@ from app.websocket_manager import manager
 
 FEEDS = {
     "Moneycontrol": "https://www.moneycontrol.com/rss/MCtopnews.xml",
-    "LiveMint": "https://www.livemint.com/rss/markets"
+    "Moneycontrol Markets": "https://www.moneycontrol.com/rss/marketreports.xml",
+    "Moneycontrol Business": "https://www.moneycontrol.com/rss/business.xml",
+    "LiveMint Markets": "https://www.livemint.com/rss/markets",
+    "LiveMint Companies": "https://www.livemint.com/rss/companies",
+    "Economic Times": "https://economictimes.indiatimes.com/markets/stocks/rssfeeds/2146842.cms"
+}
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
 class SingleNewsAnalysis(BaseModel):
@@ -29,43 +37,65 @@ class BatchNewsAnalysis(BaseModel):
 
 async def fetch_feed(source: str, url: str) -> list:
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, headers=HEADERS, follow_redirects=True) as client:
             response = await client.get(url)
-            feed = feedparser.parse(response.content)
-            return [(source, entry) for entry in feed.entries[:10]]
+            if response.status_code == 200:
+                feed = feedparser.parse(response.content)
+                return [(source, entry) for entry in feed.entries[:15]]
+            return []
     except Exception as e:
         print(f"[News Pipeline] Error fetching feed {source}: {e}")
         return []
 
+KNOWN_INDIAN_STOCKS = [
+    # Large Caps
+    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "BHARTIARTL", "SBIN", "ITC", 
+    "LT", "HINDUNILVR", "TATAMOTORS", "BAJFINANCE", "MARUTI", "SUNPHARMA", "TITAN", 
+    "AXISBANK", "ADANIENT", "NTPC", "ONGC", "POWERGRID", "TATASTEEL", "KOTAKBANK", 
+    "M&M", "COALINDIA", "BAJAJFINSV", "NESTLEIND", "ULTRACEMCO", "ASIANPAINT", "WIPRO", 
+    "TECHM", "HCLTECH", "JSWSTEEL", "GRASIM", "CIPLA", "DRREDDY", "BPCL", "EICHERMOT", 
+    "HEROMOTOCO", "DIVISLAB", "APOLLOHOSP", "BRITANNIA", "TATACONSUM", "INDUSINDBK", 
+    "BEL", "HAL", "VEDL", "IOC", "ADANIPORTS",
+    # Mid & Small Caps & Trending
+    "ZOMATO", "TRENT", "SUZLON", "BHEL", "IRFC", "RVNL", "MAZDOCK", "IREDA", 
+    "MOTHERSON", "KPITTECH", "TATAELXSI", "POLYCAB", "PERSISTENT", "COFORGE", 
+    "CDSL", "ANGELONE", "DIXON", "IDEA", "YESBANK", "NHPC", "SJVN", "JIOFIN", 
+    "PRESTIGE", "PHOENIXLTD", "AUROPHARMA", "LTIM", "MUTHOOTFIN", "PAYTM", 
+    "NYKAA", "PBFINTECH", "SWIGGY", "OLAELEC", "DEEPAKNTR", "EXIDEIND", "FEDERALBNK"
+]
+
 def fallback_sentiment_and_cat(title: str):
     t = title.lower()
-    bullish_keywords = ["surge", "jump", "rally", "profit", "gain", "high", "rise", "soar", "record", "growth"]
-    bearish_keywords = ["drop", "plunge", "fall", "loss", "crash", "down", "decline", "weak", "concern"]
+    bullish_keywords = ["surge", "jump", "rally", "profit", "gain", "high", "rise", "soar", "record", "growth", "order win", "contract", "dividend"]
+    bearish_keywords = ["drop", "plunge", "fall", "loss", "crash", "down", "decline", "weak", "concern", "fine", "penalty", "slump"]
     
     sentiment = 0.0
     if any(k in t for k in bullish_keywords):
-        sentiment = 0.6
+        sentiment = 0.65
     elif any(k in t for k in bearish_keywords):
-        sentiment = -0.6
+        sentiment = -0.65
         
     category = "General"
-    if any(k in t for k in ["quarter", "q1", "q2", "q3", "q4", "result", "revenue", "profit", "ebitda"]):
+    if any(k in t for k in ["quarter", "q1", "q2", "q3", "q4", "result", "revenue", "profit", "ebitda", "net profit", "earnings"]):
         category = "Earnings"
-    elif any(k in t for k in ["rbi", "inflation", "gdp", "repo rate", "fed", "macro", "economy"]):
+    elif any(k in t for k in ["rbi", "inflation", "gdp", "repo rate", "fed", "macro", "economy", "fiscal", "rupee"]):
         category = "Macro"
-    elif any(k in t for k in ["acquisition", "merger", "stake", "buyout", "deal", "takeover"]):
+    elif any(k in t for k in ["acquisition", "merger", "stake", "buyout", "deal", "takeover", "jv", "joint venture"]):
         category = "M&A"
-    elif any(k in t for k in ["sebi", "rbi notice", "tax", "court", "investigation", "penalty"]):
+    elif any(k in t for k in ["sebi", "rbi notice", "tax", "court", "investigation", "penalty", "notice", "ed"]):
         category = "Regulatory"
         
-    # Extract likely symbol if mentioned
+    # Extract likely symbols
     symbols = []
-    known = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "BHARTIARTL", "ITC", "LT", "TATAMOTORS"]
-    for s in known:
-        if s.lower() in t:
+    for s in KNOWN_INDIAN_STOCKS:
+        # Check symbol or common name
+        s_lower = s.lower()
+        if f" {s_lower} " in f" {t} " or s_lower in t:
             symbols.append(s)
+            if len(symbols) >= 3:
+                break
             
-    return symbols, sentiment, 6.0, category, "Market news update"
+    return symbols, sentiment, 7.0, category, "Market news update"
 
 async def run_news_pipeline():
     print("[News Pipeline] Starting RSS ingestion...")
@@ -97,25 +127,28 @@ async def run_news_pipeline():
                 continue
                 
             soup = BeautifulSoup(entry.get('summary', ''), "html.parser")
-            clean_snippet = soup.get_text()[:300]
+            clean_snippet = soup.get_text()[:300].strip()
             
-            # published date
-            published_at = datetime.now(timezone.utc)
+            # Offset-naive UTC datetime for PostgreSQL TIMESTAMP WITHOUT TIME ZONE
+            published_at = datetime.utcnow()
             if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                try:
+                    published_at = datetime(*entry.published_parsed[:6])
+                except Exception:
+                    published_at = datetime.utcnow()
                 
             item_data = {
                 "url_hash": url_hash,
-                "title": entry.title,
+                "title": entry.title.strip(),
                 "source": source,
                 "url": entry.link,
                 "published_at": published_at,
-                "snippet": clean_snippet
+                "snippet": clean_snippet or entry.title.strip()
             }
             new_items_data.append(item_data)
             batch_prompt_text += f"url_hash: {url_hash}\nTitle: {entry.title}\nSnippet: {clean_snippet}\n---\n"
             
-            if len(new_items_data) >= 20: # Batch of 20
+            if len(new_items_data) >= 50: # Ingest up to 50 items
                 break
                 
         if not new_items_data:
@@ -133,7 +166,7 @@ async def run_news_pipeline():
                 llm = ChatGroq(model=model_name, temperature=0.1, max_tokens=2048, api_key=groq_api_key)
                 structured_llm = llm.with_structured_output(BatchNewsAnalysis)
                 analysis: BatchNewsAnalysis = await structured_llm.ainvoke(
-                    f"Analyze these Indian financial news headlines and extract the requested fields for each. Match them by 'url_hash'.\n\n{batch_prompt_text}"
+                    f"Analyze these Indian financial news headlines and extract the requested fields for each. Match them by 'url_hash'.\n\n{batch_prompt_text[:3500]}"
                 )
                 analysis_map = {res.url_hash: res for res in analysis.results}
             except Exception as e:

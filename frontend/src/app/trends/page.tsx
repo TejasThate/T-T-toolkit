@@ -30,7 +30,17 @@ export default function MarketTrendsPage() {
   // Benchmark chart data
   const chartData = useMemo(() => {
     const points = 24;
-    const base = activeChartSymbol === "NIFTY 50" ? 24750 : activeChartSymbol === "BANK NIFTY" ? 52300 : activeChartSymbol === "RELIANCE" ? 2490 : 3100;
+    const baseMap: Record<string, number> = {
+      "NIFTY 50": 24148.20,
+      "BANK NIFTY": 51780.45,
+      "RELIANCE": 1298.50,
+      "TCS": 4142.10,
+      "ZOMATO": 264.40,
+      "TRENT": 7412.50,
+      "SUZLON": 68.35,
+      "HDFCBANK": 1748.90
+    };
+    const base = baseMap[activeChartSymbol] || 2500;
     const result = [];
     let cur = base;
     for (let i = 0; i < points; i++) {
@@ -93,8 +103,8 @@ export default function MarketTrendsPage() {
                 </div>
 
                 {/* Quick Chart Symbols */}
-                <div className="flex items-center gap-1 bg-[#0e0f12] p-1 rounded-xl border border-white/5">
-                  {["NIFTY 50", "BANK NIFTY", "RELIANCE", "TCS"].map((s) => (
+                <div className="flex items-center gap-1 bg-[#0e0f12] p-1 rounded-xl border border-white/5 overflow-x-auto hide-scrollbar max-w-full">
+                  {["NIFTY 50", "BANK NIFTY", "RELIANCE", "TCS", "ZOMATO", "TRENT", "SUZLON", "HDFCBANK"].map((s) => (
                     <button
                       key={s}
                       onClick={() => setActiveChartSymbol(s)}

@@ -37,6 +37,7 @@ cachetools
 sse-starlette
 pyotp
 smartapi-python
+websocket-client
 logzero
 sentry-sdk
 slowapi

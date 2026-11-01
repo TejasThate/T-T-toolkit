@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 try:
     from SmartApi import SmartConnect
     HAS_SMARTAPI = True
-except ImportError:
+except Exception as e:
     HAS_SMARTAPI = False
-    logger.warning("smartapi-python is not installed. AngelSession will operate in mock/disabled mode.")
+    logger.warning(f"smartapi-python import failed: {e}. AngelSession will operate in mock/disabled mode.")
 
 class AngelSession:
     """

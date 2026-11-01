@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 try:
     from SmartApi.smartWebSocketV2 import SmartWebSocketV2
     HAS_SMART_WS = True
-except ImportError:
+except Exception as e:
     HAS_SMART_WS = False
-    logger.warning("SmartWebSocketV2 not available")
+    logger.warning(f"SmartWebSocketV2 import failed: {e}")
 
 NSE_HOLIDAYS_2026 = {
     "2026-01-26", # Republic Day

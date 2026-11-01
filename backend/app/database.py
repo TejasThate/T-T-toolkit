@@ -31,7 +31,10 @@ pool_kwargs = {}
 if "sqlite" in DATABASE_URL:
     connect_args = {"check_same_thread": False}
 else:
-    # Postgres pool settings
+    # Postgres pool settings (optimized for Supabase / PgBouncer / direct connections)
+    connect_args = {
+        "statement_cache_size": 0,
+    }
     pool_kwargs = {
         "pool_size": 5,
         "max_overflow": 5,
@@ -41,7 +44,7 @@ else:
 
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL, 
-    echo=True, 
+    echo=False, 
     connect_args=connect_args,
     **pool_kwargs
 )

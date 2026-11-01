@@ -43,3 +43,7 @@ slowapi
 pytest
 pytest-asyncio
 httpx
+ta
+numpy
+pytz
+cryptography

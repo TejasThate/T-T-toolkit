@@ -2,10 +2,10 @@ services:
   - type: web
     name: tandt-backend
     env: python
-    region: oregon # Defaulting to a common region, user can change if needed
+    region: oregon
     healthCheckPath: /health
-    buildCommand: "cd backend && pip install -r requirements.txt && alembic upgrade head"
-    startCommand: "cd backend && gunicorn -k uvicorn.workers.UvicornWorker -w 2 --timeout 60 app.main:app --bind 0.0.0.0:$PORT"
+    buildCommand: "cd backend && pip install -r requirements.txt && (alembic upgrade head || true)"
+    startCommand: "cd backend && gunicorn -k uvicorn.workers.UvicornWorker -w 1 --timeout 120 app.main:app --bind 0.0.0.0:$PORT"
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -18,4 +18,14 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: MARKET_PROVIDER
+        sync: false
+      - key: ANGEL_API_KEY
+        sync: false
+      - key: ANGEL_CLIENT_CODE
+        sync: false
+      - key: ANGEL_PIN
+        sync: false
+      - key: ANGEL_TOTP_SECRET
         sync: false

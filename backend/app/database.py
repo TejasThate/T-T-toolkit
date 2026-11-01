@@ -18,6 +18,10 @@ if DATABASE_URL.startswith("postgres://"):
 if DATABASE_URL.startswith("postgresql://") and "asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+# Ensure aiosqlite driver is used for sqlite
+if DATABASE_URL.startswith("sqlite://") and "aiosqlite" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
+
 SQLALCHEMY_DATABASE_URL = DATABASE_URL
 
 connect_args = {}

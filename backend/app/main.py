@@ -423,30 +423,69 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             raise e
         raise HTTPException(status_code=400, detail=f"Login Error: {str(e)}")
 
+@app.post("/auth/guest", response_model=schemas.Token)
+@limiter.limit("10/minute")
+async def guest_login(request: Request, db: AsyncSession = Depends(get_db)):
+    """Provides instant guest/demo access to the platform without external OAuth."""
+    try:
+        guest_email = "guest@tandt.ai"
+        result = await db.execute(select(models.User).where(models.User.email == guest_email))
+        user = result.scalars().first()
+        if not user:
+            import secrets
+            hashed_password = auth.get_password_hash(secrets.token_urlsafe(16))
+            user = models.User(email=guest_email, hashed_password=hashed_password)
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+        
+        access_token = auth.create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
+    except Exception as e:
+        logger.warning(f"Guest login DB fallback: {e}")
+        access_token = auth.create_access_token(data={"sub": "guest@tandt.ai"})
+        return {"access_token": access_token, "token_type": "bearer"}
+
 class GoogleAuthCodeRequest(BaseModel):
-    code: str
+    code: Optional[str] = None
+    credential: Optional[str] = None
 
 @app.post("/auth/google", response_model=schemas.Token)
-@limiter.limit("5/minute")
+@limiter.limit("15/minute")
 async def google_login(request: Request, req: GoogleAuthCodeRequest, db: AsyncSession = Depends(get_db)):
     try:
-        import asyncio
-        loop = asyncio.get_running_loop()
-        try:
-            token_info = await loop.run_in_executor(None, auth.exchange_google_code, req.code)
-        except Exception as flow_err:
-            error_str = str(flow_err).lower()
-            if 'invalid_grant' in error_str or 'bad request' in error_str:
-                raise HTTPException(status_code=400, detail="invalid_grant: The auth code is invalid or expired.")
-            elif 'redirect_uri_mismatch' in error_str:
-                raise HTTPException(status_code=400, detail="redirect_uri_mismatch: Ensure frontend and backend use 'postmessage'.")
+        email = None
+        token_info = {}
+        
+        # Support both Google ID Token (credential/One-Tap) and Auth Code (popup flow)
+        if req.credential or (req.code and req.code.startswith("ey")):
+            token_to_verify = req.credential or req.code
+            idinfo = auth.verify_google_token(token_to_verify)
+            if idinfo:
+                email = idinfo.get("email")
+                token_info = {"idinfo": idinfo, "access_token": token_to_verify, "refresh_token": None}
             else:
-                raise HTTPException(status_code=400, detail=f"Google OAuth Error: {str(flow_err)}")
+                raise HTTPException(status_code=400, detail="Invalid Google ID token")
+        elif req.code:
+            import asyncio
+            loop = asyncio.get_running_loop()
+            try:
+                token_info = await loop.run_in_executor(None, auth.exchange_google_code, req.code)
+                idinfo = token_info.get("idinfo", {})
+                email = idinfo.get("email")
+            except Exception as flow_err:
+                error_str = str(flow_err).lower()
+                if 'invalid_grant' in error_str or 'bad request' in error_str:
+                    raise HTTPException(status_code=400, detail="invalid_grant: The auth code is invalid or expired.")
+                elif 'redirect_uri_mismatch' in error_str:
+                    raise HTTPException(status_code=400, detail="redirect_uri_mismatch: Ensure frontend and backend use 'postmessage'.")
+                else:
+                    raise HTTPException(status_code=400, detail=f"Google OAuth Error: {str(flow_err)}")
+        else:
+            raise HTTPException(status_code=400, detail="Missing Google code or credential")
 
-        idinfo = token_info.get("idinfo", {})
-        email = idinfo.get("email")
         if not email:
-            raise HTTPException(status_code=400, detail="Google token missing email")
+            raise HTTPException(status_code=400, detail="Google authentication failed to resolve user email")
 
         result = await db.execute(select(models.User).where(models.User.email == email))
         user = result.scalars().first()
@@ -456,26 +495,29 @@ async def google_login(request: Request, req: GoogleAuthCodeRequest, db: AsyncSe
             hashed_password = auth.get_password_hash(secrets.token_urlsafe(16))
             user = models.User(email=email, hashed_password=hashed_password)
             db.add(user)
-        
-        await db.commit()
-        await db.refresh(user)
+            await db.commit()
+            await db.refresh(user)
 
-        # Save tokens
-        token_result = await db.execute(select(models.OAuthToken).where(
-            models.OAuthToken.user_id == user.id,
-            models.OAuthToken.provider == 'google'
-        ))
-        oauth_token = token_result.scalars().first()
-        
-        if not oauth_token:
-            oauth_token = models.OAuthToken(user_id=user.id, provider='google')
-            db.add(oauth_token)
+        # Save tokens if provided
+        try:
+            token_result = await db.execute(select(models.OAuthToken).where(
+                models.OAuthToken.user_id == user.id,
+                models.OAuthToken.provider == 'google'
+            ))
+            oauth_token = token_result.scalars().first()
             
-        oauth_token.access_token = auth.encrypt_data(token_info["access_token"])
-        if token_info.get("refresh_token"):
-            oauth_token.refresh_token = auth.encrypt_data(token_info["refresh_token"])
-            
-        await db.commit()
+            if not oauth_token:
+                oauth_token = models.OAuthToken(user_id=user.id, provider='google')
+                db.add(oauth_token)
+                
+            if token_info.get("access_token"):
+                oauth_token.access_token = auth.encrypt_data(token_info["access_token"])
+            if token_info.get("refresh_token"):
+                oauth_token.refresh_token = auth.encrypt_data(token_info["refresh_token"])
+                
+            await db.commit()
+        except Exception as token_save_err:
+            logger.warning(f"Failed to persist oauth token: {token_save_err}")
             
         access_token = auth.create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}

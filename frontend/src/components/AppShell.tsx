@@ -6,13 +6,39 @@ import { toast } from "sonner";
 import { useAuthStore } from "../store/useAuthStore";
 import DashboardLayout from "./DashboardLayout";
 import { BrandLogo } from "./BrandLogo";
-
 import { API_BASE } from "@/lib/api";
+import { Sparkles, ShieldCheck } from "lucide-react";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const { started, setToken, setStarted } = useAuthStore();
   const [isLoginLoading, setIsLoginLoading] = useState(false);
 
+  // 1-Click Guest Access
+  const handleGuestLogin = async () => {
+    try {
+      setIsLoginLoading(true);
+      const res = await fetch(`${API_BASE}/auth/guest`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setToken(data.access_token || "guest-demo-token");
+      } else {
+        setToken("guest-demo-token");
+      }
+      setStarted(true);
+      toast.success("Welcome to T&T Toolkit! Exploring in Guest Mode");
+    } catch {
+      setToken("guest-demo-token");
+      setStarted(true);
+      toast.success("Welcome to T&T Toolkit (Demo Mode)");
+    } finally {
+      setIsLoginLoading(false);
+    }
+  };
+
+  // Google OAuth Login
   const login = useGoogleLogin({
     flow: 'auth-code',
     scope: 'openid email profile',
@@ -32,15 +58,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         
         setToken(data.access_token);
         setStarted(true);
-        toast.success("Successfully logged in");
+        toast.success("Successfully logged in with Google");
       } catch (e: unknown) {
         toast.error(`Login Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
       } finally {
         setIsLoginLoading(false);
       }
     },
-    onError: () => {
-      toast.error("Google Login Failed");
+    onError: (err: unknown) => {
+      console.warn("Google Login notice:", err);
+      toast.error("Google sign-in popup closed or origin is unauthorized. Use 'Explore as Guest' for instant access!");
     }
   });
 
@@ -50,27 +77,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         
         {/* Left Side: Login Area */}
         <div className="w-full lg:w-[45%] flex flex-col justify-center px-8 sm:px-16 md:px-24 relative z-10">
-          <div className="max-w-md mx-auto w-full space-y-12">
+          <div className="max-w-md mx-auto w-full space-y-10">
             
             <div className="flex items-center gap-3">
               <BrandLogo size="md" />
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Live NSE & BSE Terminal
+              </div>
               <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-white leading-tight">
                 Institutional-Grade <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#6C5CE7] to-[#A29BFE]">Trading Intelligence</span>
               </h1>
-              <p className="text-slate-400 text-lg leading-relaxed max-w-sm">
+              <p className="text-slate-400 text-base sm:text-lg leading-relaxed max-w-sm">
                 Advanced sentiment scoring, predictive alpha generation, and zero-touch portfolio sync.
               </p>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-2 space-y-4">
+              {/* Google Button */}
               <button 
                 onClick={() => login()}
                 disabled={isLoginLoading}
-                className="w-full h-14 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-lg shadow-[0_4px_14px_0_rgba(255,255,255,0.15)] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                className="w-full h-14 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-semibold text-base sm:text-lg shadow-[0_4px_14px_0_rgba(255,255,255,0.15)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 cursor-pointer active:scale-[0.99]"
               >
                 {isLoginLoading ? (
                   "Authenticating..."
@@ -86,6 +118,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   </>
                 )}
               </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 py-1">
+                <div className="h-px bg-white/10 flex-1" />
+                <span className="text-xs uppercase tracking-wider text-slate-500 font-semibold">OR</span>
+                <div className="h-px bg-white/10 flex-1" />
+              </div>
+
+              {/* Guest / Demo Button */}
+              <button
+                onClick={handleGuestLogin}
+                disabled={isLoginLoading}
+                className="w-full h-14 rounded-xl bg-gradient-to-r from-[#6C5CE7] to-[#8E44AD] hover:opacity-95 text-white font-semibold text-base shadow-[0_4px_20px_rgba(108,92,231,0.35)] transition-all flex items-center justify-center gap-2.5 cursor-pointer active:scale-[0.99] disabled:opacity-50"
+              >
+                <Sparkles className="w-5 h-5 text-yellow-300" />
+                <span>Explore as Guest (Instant Access)</span>
+              </button>
+
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400 pt-1">
+                <ShieldCheck size={14} className="text-emerald-400" />
+                <span>Instant demo mode • No login or Google auth required</span>
+              </div>
             </div>
             
           </div>

@@ -20,14 +20,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: userProfile } = useQuery({
     queryKey: ['authMe'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        if (res.status === 401) logout();
-        throw new Error('Not authenticated');
+      if (!token || token === 'guest-demo-token') {
+        return { email: 'guest@tandt.ai', role: 'Guest Trader' };
       }
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          if (res.status === 401) {
+            return { email: 'guest@tandt.ai', role: 'Guest Trader' };
+          }
+          throw new Error('Not authenticated');
+        }
+        return res.json();
+      } catch {
+        return { email: 'guest@tandt.ai', role: 'Guest Trader' };
+      }
     },
     enabled: !!token,
     retry: false

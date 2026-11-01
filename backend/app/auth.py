@@ -16,7 +16,7 @@ from google_auth_oauthlib.flow import Flow
 from cryptography.fernet import Fernet
 import base64
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or "251614952431-j5o9pd2supee8hmof9n0mndupb8osvan.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-jwt-keep-it-secret")
 

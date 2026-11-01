@@ -4,23 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactNode, useState } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+const VALID_GOOGLE_CLIENT_ID = "251614952431-j5o9pd2supee8hmof9n0mndupb8osvan.apps.googleusercontent.com";
+const envClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+// Cleanly fallback if env var is missing or contains the outdated j137o7 client ID
+const GOOGLE_CLIENT_ID = (envClientId && !envClientId.includes("j137o7")) ? envClientId : VALID_GOOGLE_CLIENT_ID;
 
 export function Providers({ children }: { children: ReactNode }) {
-  if (!GOOGLE_CLIENT_ID) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#0e0f12] text-white">
-        <div className="text-center space-y-4 p-8 border border-red-500/30 bg-red-500/10 rounded-xl max-w-md">
-          <h2 className="text-2xl font-bold text-red-400">Missing Configuration</h2>
-          <p className="text-slate-300">
-            NEXT_PUBLIC_GOOGLE_CLIENT_ID environment variable is missing. 
-            Please configure it to enable Google Login.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Use state to ensure a unique QueryClient per request/session
   const [queryClient] = useState(
     () =>

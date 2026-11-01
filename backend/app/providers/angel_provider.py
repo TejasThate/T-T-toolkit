@@ -9,7 +9,7 @@ import pytz
 import requests
 from typing import List, Dict, Any, Optional, Set
 
-from app.services.market_data import MarketDataProvider, Tick
+from app.providers.base import MarketDataProvider, Tick
 from app.providers.angel_session import angel_session, AngelSession
 from app.providers.yfinance_provider import YFinanceProvider
 

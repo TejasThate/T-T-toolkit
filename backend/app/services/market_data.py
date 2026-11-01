@@ -12,22 +12,7 @@ import pytz
 
 logger = logging.getLogger(__name__)
 
-class Tick(BaseModel):
-    symbol: str
-    price: float
-    change_pct: float
-    volume: float = 0.0
-    ts: datetime.datetime
-    source: str
-    is_live: bool
-
-class MarketDataProvider(ABC):
-    @abstractmethod
-    async def get_quotes(self, symbols: List[str]) -> List[Tick]:
-        pass
-
-    async def start_stream(self, symbols: List[str], callback) -> None:
-        pass
+from app.providers.base import MarketDataProvider, Tick
 
 class YFinanceProvider(MarketDataProvider):
     async def get_quotes(self, symbols: List[str]) -> List[Tick]:

@@ -32,3 +32,4 @@ This document tracks all required and optional environment variables across serv
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth 2.0 Web Client Secret | Alphanumeric secret |
 | `GROQ_API_KEY` | Yes | Groq Cloud API Key for high-speed LLM inference | `gsk_...` |
 | `SENTRY_DSN` | Optional | Sentry DSN for backend crash and error tracking | `https://...@sentry.io/...` |
+

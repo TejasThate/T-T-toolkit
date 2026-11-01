@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query
-from app.providers.yf_provider import YFinanceProvider
+from app.providers.yfinance_provider import YFinanceProvider
 import datetime
 import pytz
 import logging

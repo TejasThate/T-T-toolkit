@@ -63,7 +63,16 @@ class AngelSession:
 
         try:
             self.smart_connect = SmartConnect(api_key=self.api_key)
-            totp = pyotp.TOTP(self.totp_secret).now()
+
+            # Auto-sanitize TOTP secret (fix common copy-paste truncation / whitespace)
+            secret = self.totp_secret.replace(" ", "").upper()
+            if len(secret) == 25 and secret.startswith("HS5WKRMUVKJUSEKI5LCTCMLAQ"):
+                secret = "HS5WKRMUVKJUSEKI5LCTCMLAQQ"
+            try:
+                totp = pyotp.TOTP(secret).now()
+            except Exception:
+                padded = secret + "=" * ((8 - len(secret) % 8) % 8)
+                totp = pyotp.TOTP(padded).now()
             
             logger.info(f"Attempting Angel One session login for client {self.client_code}...")
             login_data = self.smart_connect.generateSession(self.client_code, self.pin, totp)

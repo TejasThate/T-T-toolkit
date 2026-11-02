@@ -15,47 +15,71 @@ class YFinanceProvider(MarketDataProvider):
         # yfinance doesn't natively provide index constituents well, usually this relies on NSE
         return []
 
-    async def get_quotes(self, symbols: List[str]) -> Dict[str, Any]:
-        """Fetch quotes in batch using yf.download"""
+    async def get_quotes(self, symbols: List[str]) -> List[Tick]:
+        """Fetch quotes in batch using yf.download with fallback to in-memory Indian market state."""
         if not symbols:
-            return {}
+            return []
             
+        from app.providers.base import Tick
+        from app.services.live_market_state import market_state
+        ticks: List[Tick] = []
+        now = datetime.now(self.ist)
+
+        # Fallback to high-fidelity in-memory quotes first for sub-millisecond response
+        for sym in symbols:
+            clean = sym.replace(".NS", "").replace(".BO", "")
+            lookup = f"^{clean}" if f"^{clean}" in market_state.quotes else clean
+            if lookup in market_state.quotes:
+                q = market_state.quotes[lookup]
+                ticks.append(Tick(
+                    symbol=sym,
+                    price=float(q.get("ltp", q.get("prev_close", 0.0))),
+                    change_pct=float(q.get("change_pct", 0.0)),
+                    volume=float(q.get("volume", 0.0)),
+                    ts=now,
+                    source="yf_fallback",
+                    is_live=False
+                ))
+
+        if ticks:
+            return ticks
+
         # Ensure symbols have .NS suffix for Indian market
         yf_symbols = [s if s.endswith('.NS') or s.endswith('.BO') else f"{s}.NS" for s in symbols]
         
         def fetch():
-            # Using threads=True for faster batch download
-            data = yf.download(tickers=" ".join(yf_symbols), period="1d", group_by="ticker", threads=True, progress=False)
+            data = yf.download(tickers=" ".join(yf_symbols), period="2d", group_by="ticker", threads=True, progress=False)
             return data
 
         try:
             loop = asyncio.get_event_loop()
             data = await loop.run_in_executor(self.executor, fetch)
             
-            results = {}
             for i, sym in enumerate(symbols):
                 yf_sym = yf_symbols[i]
-                if len(symbols) == 1:
-                    df = data
-                else:
-                    if yf_sym not in data.columns.levels[0]:
-                        continue
-                    df = data[yf_sym]
-                    
-                if df.empty:
+                try:
+                    df = data[yf_sym] if len(symbols) > 1 else data
+                    if df is not None and not df.empty and len(df) >= 1:
+                        latest = df.iloc[-1]
+                        prev_close = df.iloc[-2]["Close"] if len(df) >= 2 else latest["Close"]
+                        curr_price = float(latest["Close"])
+                        pct = ((curr_price - prev_close) / prev_close) * 100.0 if prev_close else 0.0
+                        vol = float(latest.get("Volume", 0.0))
+                        ticks.append(Tick(
+                            symbol=sym,
+                            price=curr_price,
+                            change_pct=round(pct, 2),
+                            volume=vol,
+                            ts=now,
+                            source="yfinance",
+                            is_live=False
+                        ))
+                except Exception:
                     continue
-                    
-                # Extract the latest values
-                latest = df.iloc[-1]
-                prev_close = latest.get("Close", 0) # In a 1d period, this isn't true prev_close but it's a fallback
-                # To get actual previous close, we need history="2d". 
-                # A more robust YF quote uses yf.Tickers(symbols).tickers
-                
-            # A better approach for quotes is using yf.Tickers
-            return results
+            return ticks
         except Exception as e:
             print(f"YFinance provider error: {e}")
-            return {}
+            return ticks
 
     async def get_history(self, symbol: str, period: str = "1mo", interval: str = "1d") -> List[Dict[str, Any]]:
         yf_sym = symbol if symbol.endswith('.NS') or symbol.endswith('.BO') else f"{symbol}.NS"

@@ -757,15 +757,17 @@ async def get_market_quotes(
     symbols: str = Query(..., description="Comma-separated list of symbols (e.g. RELIANCE.NS,TCS.NS)")
 ):
     from app.services.market_data import LatestTick
+    from app.services.live_market_state import market_state
     symbol_list = [s.strip().upper() for s in symbols.split(",")]
     results = {}
-    for sym in symbol_list:
-        if not sym.endswith(".NS") and not sym.endswith(".BO") and not sym.startswith("^"):
-            sym = f"{sym}.NS"
+    for raw_sym in symbol_list:
+        clean = raw_sym.replace(".NS", "").replace(".BO", "")
+        ns_sym = f"{clean}.NS" if not raw_sym.startswith("^") else raw_sym
         
-        tick = LatestTick.get(sym)
+        # 1. Try LatestTick
+        tick = LatestTick.get(ns_sym) or LatestTick.get(clean) or LatestTick.get(raw_sym)
         if tick:
-            results[sym] = {
+            results[ns_sym] = {
                 "price": tick.price,
                 "change_pct": tick.change_pct,
                 "volume": tick.volume,
@@ -773,8 +775,23 @@ async def get_market_quotes(
                 "source": tick.source,
                 "is_live": tick.is_live
             }
+            continue
+
+        # 2. Try market_state quotes
+        lookup = f"^{clean}" if f"^{clean}" in market_state.quotes else clean
+        if lookup in market_state.quotes:
+            q = market_state.quotes[lookup]
+            results[ns_sym] = {
+                "price": q.get("ltp", 0.0),
+                "change_pct": q.get("change_pct", 0.0),
+                "change": q.get("change", 0.0),
+                "volume": q.get("volume", 0),
+                "as_of": q.get("updated_at", ""),
+                "source": q.get("source", "angel"),
+                "is_live": q.get("is_live", False)
+            }
         else:
-            results[sym] = None
+            results[ns_sym] = None
     return results
 
 from app.routers.market import router as market_router

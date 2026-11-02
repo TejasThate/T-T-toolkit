@@ -35,3 +35,7 @@ env/
 
 # Private Notes
 SESSION_SUMMARY.md
+
+# Cache files
+.pytest_cache/
+*scrip_master_cache.json

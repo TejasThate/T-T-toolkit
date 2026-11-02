@@ -28,17 +28,21 @@ export function useMarketDataSync() {
             const gainers: any[] = [];
             
             json.data.forEach((item: any) => {
-              quotes[item.symbol] = {
-                price: item.ltp,
-                ltp: item.ltp,
+              const cleanSym = item.ticker || item.symbol.replace('.NS', '').replace('^', '');
+              const quoteObj = {
+                price: item.ltp || item.price,
+                ltp: item.ltp || item.price,
                 change: item.change,
                 change_pct: item.change_pct,
                 volume: item.volume
               };
-              prices[item.symbol] = item.ltp;
+              quotes[cleanSym] = quoteObj;
+              quotes[item.symbol] = quoteObj;
+              prices[cleanSym] = item.ltp || item.price;
+              prices[item.symbol] = item.ltp || item.price;
               gainers.push({
-                symbol: item.symbol,
-                price: item.ltp,
+                symbol: cleanSym,
+                price: item.ltp || item.price,
                 change_pct: item.change_pct
               });
             });

@@ -52,7 +52,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!token
+    staleTime: 10000,
+    refetchInterval: 30000,
   });
 
   // Market Data Hook (WebSocket)
@@ -71,7 +72,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (!res.ok) throw new Error('Forecast fetch failed');
       return res.json();
     },
-    enabled: !!token
+    staleTime: 10000,
+    refetchInterval: 30000,
   });
 
   // Market Data Hook is already defined above

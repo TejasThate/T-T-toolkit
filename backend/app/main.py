@@ -196,8 +196,8 @@ async def startup():
             await manager.broadcast(json.dumps(payload), channel="market:updates")
             
             # --- PHASE 5: ALERT EVALUATION ---
-            from app.database import AsyncSessionLocal
-            async with AsyncSessionLocal() as session:
+            from app.database import SessionLocal
+            async with SessionLocal() as session:
                 # Get all active alerts
                 result = await session.execute(select(models.Alert).where(models.Alert.is_active == 1))
                 active_alerts = result.scalars().all()
@@ -297,21 +297,23 @@ async def get_ai_forecast(
         if h_list:
             portfolio_context = f"User holds {len(h_list)} stocks: {', '.join([h.symbol for h in h_list[:5]])}."
 
-    # Live market context from ticks
-    ticks = list(market_data.LatestTick.values()) if isinstance(market_data.LatestTick, dict) else []
-    if ticks:
-        top_moves = sorted(ticks, key=lambda t: abs(t.change_pct), reverse=True)[:4]
-        market_context = ", ".join([f"{t.symbol}: Rs. {t.price} ({t.change_pct:+.2f}%)" for t in top_moves])
-    else:
-        market_context = "NIFTY 50 trading steadily near 24,800. Key stocks Reliance (+1.0%), TCS (+0.8%), HDFC Bank (+0.5%)."
+    # Live market context from LiveMarketState
+    from app.services.live_market_state import market_state
+    gainers = market_state.get_movers("gainers", 3)
+    indices = market_state.get_indices()
+    nifty = next((i for i in indices if "NIFTY 50" in i["name"]), None)
+    
+    g_strs = [f"{g.get('ticker', '')} (+{g.get('change_pct', 0)}%)" for g in gainers]
+    n_val = nifty.get('value', 24000) if nifty else 24000
+    n_chg = nifty.get('change_pct', 0.5) if nifty else 0.5
+    market_context = f"NIFTY 50: {n_val} ({n_chg:+.2f}%), Top Gainers: {', '.join(g_strs)}"
 
     try:
         from app.services.ai_service import generate_forecast_summary
         summary = await generate_forecast_summary(portfolio_context, market_context)
-        if not summary or "Unable" in summary or "offline" in summary:
-            summary = f"Indian equity markets showing resilient breadth. Top momentum noted in {market_context.split(',')[0]}. Key support levels holding with positive risk-reward."
-    except Exception:
-        summary = f"Indian equity markets showing resilient breadth. Top momentum noted in {market_context.split(',')[0]}. Key support levels holding with positive risk-reward."
+    except Exception as e:
+        from app.services.ai_service import build_refined_market_forecast
+        summary = build_refined_market_forecast(portfolio_context, market_context)
 
     return {"forecast": summary}
 
@@ -337,6 +339,19 @@ async def get_ipos():
     import asyncio
     ipos = await asyncio.to_thread(fetch_live_ipos)
     return {"ipos": ipos}
+
+@app.get("/api/etfs")
+@app.get("/api/market/etfs_alias")
+async def get_etfs_convenience(category: str = "All"):
+    from app.services.live_market_state import market_state
+    return {"data": market_state.get_etfs(category)}
+
+@app.get("/api/bonds")
+@app.get("/api/market/bonds_alias")
+async def get_bonds_convenience(type: str = "All"):
+    from app.services.live_market_state import market_state
+    return {"data": market_state.get_bonds(type)}
+
 
 @app.get("/api/market/predict/{symbol}")
 async def predict_trend(

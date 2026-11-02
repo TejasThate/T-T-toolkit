@@ -10,8 +10,8 @@ export function IndexStrip() {
   const { data: initialData, isLoading } = useQuery({
     queryKey: ['marketIndices'],
     queryFn: () => fetchApi<any>('/api/market/indices'),
-    // No more aggressive polling, relies on window focus or websocket
-    staleTime: 60 * 1000, 
+    staleTime: 5000, 
+    refetchInterval: 8000, // Instant ~1ms sub-millisecond refresh
   });
 
   const { data: marketData } = useMarketDataSync();

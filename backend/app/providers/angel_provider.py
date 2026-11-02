@@ -110,9 +110,11 @@ class AngelProvider(MarketDataProvider):
             "WIPRO": ("3787", "WIPRO LTD"),
             "HCLTECH": ("7229", "HCL TECHNOLOGIES LTD"),
             "TECHM": ("13538", "TECH MAHINDRA LIMITED"),
+            "ZOMATO": ("5097", "ZOMATO LIMITED"),
             "TRENT": ("1964", "TRENT LTD"),
             "SUZLON": ("12018", "SUZLON ENERGY LIMITED"),
             "BHEL": ("438", "BHARAT HEAVY ELECTRICALS"),
+            "MAZDOCK": ("3142", "MAZAGON DOCK SHIPBUILDERS"),
             "BEL": ("383", "BHARAT ELECTRONICS LTD"),
             "HAL": ("2303", "HINDUSTAN AERONAUTICS LTD"),
             "DIXON": ("21690", "DIXON TECHNO (INDIA) LTD"),
@@ -183,9 +185,15 @@ class AngelProvider(MarketDataProvider):
 
     def load_instruments_from_scrip_master(self, cache_path: str = "scrip_master_cache.json") -> int:
         """
-        Downloads Angel One's OpenAPIScripMaster.json, filters for NSE Cash equities and indices,
-        and builds high-speed in-memory symbol<->token mappings.
+        Loads optimized NSE Cash equities and indices.
+        Avoids downloading the monolithic 100MB+ OpenAPIScripMaster.json which causes
+        Out Of Memory (512MB RAM exceeded) kills on cloud hosting (e.g. Render).
         """
+        enable_download = os.getenv("ENABLE_FULL_SCRIP_DOWNLOAD", "false").lower() == "true"
+        if not enable_download:
+            logger.info(f"Using high-performance in-memory scrip registry with {len(self.symbol_to_token)} core instruments (memory-safe mode).")
+            return len(self.symbol_to_token)
+
         url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
         data = None
 
